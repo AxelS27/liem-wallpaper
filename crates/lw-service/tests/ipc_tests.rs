@@ -1,9 +1,9 @@
-use std::sync::{Arc, Mutex};
+use lw_core::{traits::WallpaperManager, IpcRequest, IpcResponse, Result};
+use lw_service::ipc::{run_ipc_server, PIPE_NAME};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::windows::named_pipe::ClientOptions;
-use lw_core::{IpcRequest, IpcResponse, traits::WallpaperManager, Result};
-use lw_service::ipc::{run_ipc_server, PIPE_NAME};
 
 struct MockWallpaperManager {
     current: Mutex<PathBuf>,
@@ -11,9 +11,7 @@ struct MockWallpaperManager {
 
 impl MockWallpaperManager {
     fn new() -> Self {
-        Self {
-            current: Mutex::new(PathBuf::new()),
-        }
+        Self { current: Mutex::new(PathBuf::new()) }
     }
 }
 
@@ -28,12 +26,7 @@ impl WallpaperManager for MockWallpaperManager {
     }
 
     fn get_monitor_rects(&self) -> Result<Vec<lw_core::traits::MonitorRect>> {
-        Ok(vec![lw_core::traits::MonitorRect {
-            left: 0,
-            top: 0,
-            right: 1920,
-            bottom: 1080,
-        }])
+        Ok(vec![lw_core::traits::MonitorRect { left: 0, top: 0, right: 1920, bottom: 1080 }])
     }
 }
 
@@ -48,16 +41,15 @@ async fn test_ipc_commands() {
             Arc::new(Mutex::new(Default::default())),
             server_wm,
             Arc::new(Mutex::new(lw_service::scheduler::SchedulerState::default())),
-        ).await;
+        )
+        .await;
     });
 
     // Wait a brief moment for the pipe server to start listening
     tokio::time::sleep(tokio::time::Duration::from_millis(250)).await;
 
     // Connect client
-    let mut client = ClientOptions::new()
-        .open(PIPE_NAME)
-        .expect("Failed to connect to named pipe");
+    let mut client = ClientOptions::new().open(PIPE_NAME).expect("Failed to connect to named pipe");
 
     // 1. Send GetStatus request
     let request = IpcRequest::GetStatus;
@@ -83,10 +75,7 @@ async fn test_ipc_commands() {
 
     // 2. Send SetWallpaper request
     let test_path = PathBuf::from("C:\\wallpaper.jpg");
-    let request = IpcRequest::SetWallpaper {
-        path: test_path.clone(),
-        transition: None,
-    };
+    let request = IpcRequest::SetWallpaper { path: test_path.clone(), transition: None };
     let mut request_bytes = serde_json::to_vec(&request).unwrap();
     request_bytes.push(b'\n');
 

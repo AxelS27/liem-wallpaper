@@ -7,8 +7,8 @@ use windows::Win32::Graphics::Direct3D11::{
 };
 use windows::Win32::Graphics::Dxgi::Common::{DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_SAMPLE_DESC};
 use windows::Win32::Graphics::Imaging::{
-    CLSID_WICImagingFactory, IWICImagingFactory, WICDecodeMetadataCacheOnDemand,
-    WICBitmapDitherTypeNone, WICBitmapPaletteTypeCustom, GUID_WICPixelFormat32bppPBGRA,
+    CLSID_WICImagingFactory, GUID_WICPixelFormat32bppPBGRA, IWICImagingFactory,
+    WICBitmapDitherTypeNone, WICBitmapPaletteTypeCustom, WICDecodeMetadataCacheOnDemand,
 };
 use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER};
 
@@ -26,12 +26,10 @@ pub fn load_texture_from_file(
 
     unsafe {
         // Create WIC imaging factory
-        let factory: IWICImagingFactory = CoCreateInstance(
-            &CLSID_WICImagingFactory,
-            None,
-            CLSCTX_INPROC_SERVER,
-        )
-        .map_err(|e| LwError::Renderer(format!("Failed to create WIC Imaging Factory: {e}")))?;
+        let factory: IWICImagingFactory =
+            CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER).map_err(
+                |e| LwError::Renderer(format!("Failed to create WIC Imaging Factory: {e}")),
+            )?;
 
         // Create decoder from filename
         let decoder = factory
@@ -49,9 +47,9 @@ pub fn load_texture_from_file(
             .map_err(|e| LwError::Renderer(format!("Failed to get WIC frame: {e}")))?;
 
         // Convert format to 32bppPBGRA
-        let converter = factory
-            .CreateFormatConverter()
-            .map_err(|e| LwError::Renderer(format!("Failed to create WIC format converter: {e}")))?;
+        let converter = factory.CreateFormatConverter().map_err(|e| {
+            LwError::Renderer(format!("Failed to create WIC format converter: {e}"))
+        })?;
 
         converter
             .Initialize(
@@ -62,7 +60,9 @@ pub fn load_texture_from_file(
                 0.0,
                 WICBitmapPaletteTypeCustom,
             )
-            .map_err(|e| LwError::Renderer(format!("Failed to initialize WIC format converter: {e}")))?;
+            .map_err(|e| {
+                LwError::Renderer(format!("Failed to initialize WIC format converter: {e}"))
+            })?;
 
         let (mut width, mut height) = (0, 0);
         converter
@@ -73,11 +73,7 @@ pub fn load_texture_from_file(
         let mut buffer = vec![0u8; (stride * height) as usize];
 
         converter
-            .CopyPixels(
-                std::ptr::null(),
-                stride,
-                &mut buffer,
-            )
+            .CopyPixels(std::ptr::null(), stride, &mut buffer)
             .map_err(|e| LwError::Renderer(format!("Failed to copy WIC pixels: {e}")))?;
 
         // Create D3D11 Texture
@@ -101,17 +97,18 @@ pub fn load_texture_from_file(
         };
 
         let mut texture: Option<ID3D11Texture2D> = None;
-        d3d_device
-            .CreateTexture2D(&desc, Some(&subresource), Some(&mut texture))
-            .map_err(|e| LwError::Renderer(format!("Failed to create D3D11 texture from WIC pixels: {e}")))?;
+        d3d_device.CreateTexture2D(&desc, Some(&subresource), Some(&mut texture)).map_err(|e| {
+            LwError::Renderer(format!("Failed to create D3D11 texture from WIC pixels: {e}"))
+        })?;
 
-        let texture = texture.ok_or_else(|| LwError::Renderer("D3D11 texture is null".to_string()))?;
+        let texture =
+            texture.ok_or_else(|| LwError::Renderer("D3D11 texture is null".to_string()))?;
 
         // Create SRV
         let mut srv: Option<ID3D11ShaderResourceView> = None;
-        d3d_device
-            .CreateShaderResourceView(&texture, None, Some(&mut srv))
-            .map_err(|e| LwError::Renderer(format!("Failed to create SRV for D3D11 texture: {e}")))?;
+        d3d_device.CreateShaderResourceView(&texture, None, Some(&mut srv)).map_err(|e| {
+            LwError::Renderer(format!("Failed to create SRV for D3D11 texture: {e}"))
+        })?;
 
         let srv = srv.ok_or_else(|| LwError::Renderer("SRV is null".to_string()))?;
 

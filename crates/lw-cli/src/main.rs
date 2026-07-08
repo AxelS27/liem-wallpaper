@@ -17,7 +17,7 @@ struct Cli {
 enum Commands {
     /// Get current wallpaper daemon status
     Status,
-    
+
     /// Set a new wallpaper path
     Set {
         /// Absolute path to the wallpaper image
@@ -48,9 +48,7 @@ async fn main() {
             let abs_path = if path.is_absolute() {
                 path
             } else {
-                std::env::current_dir()
-                    .map(|d| d.join(&path))
-                    .unwrap_or(path)
+                std::env::current_dir().map(|d| d.join(&path)).unwrap_or(path)
             };
 
             let parsed_easing = match easing.to_lowercase().as_str() {
@@ -84,19 +82,22 @@ async fn send_request_and_print(request: IpcRequest) -> Result<(), String> {
         .map_err(|e| format!("Failed to connect to wallpaper daemon: {e}"))?;
 
     // 2. Serialize and write request
-    let mut request_bytes = serde_json::to_vec(&request)
-        .map_err(|e| format!("Failed to serialize request: {e}"))?;
+    let mut request_bytes =
+        serde_json::to_vec(&request).map_err(|e| format!("Failed to serialize request: {e}"))?;
     request_bytes.push(b'\n');
 
-    client.write_all(&request_bytes).await
+    client
+        .write_all(&request_bytes)
+        .await
         .map_err(|e| format!("Failed to write request to pipe: {e}"))?;
-    client.flush().await
-        .map_err(|e| format!("Failed to flush pipe: {e}"))?;
+    client.flush().await.map_err(|e| format!("Failed to flush pipe: {e}"))?;
 
     // 3. Read response
     let mut reader = BufReader::new(client);
     let mut line = String::new();
-    reader.read_line(&mut line).await
+    reader
+        .read_line(&mut line)
+        .await
         .map_err(|e| format!("Failed to read response from pipe: {e}"))?;
 
     let response: IpcResponse = serde_json::from_str(&line)
@@ -107,9 +108,14 @@ async fn send_request_and_print(request: IpcRequest) -> Result<(), String> {
         IpcResponse::Success => {
             println!("Success: Command executed successfully.");
         }
-        IpcResponse::StatusResponse { current_wallpaper, scheduler_active, next_change_in_seconds } => {
+        IpcResponse::StatusResponse {
+            current_wallpaper,
+            scheduler_active,
+            next_change_in_seconds,
+        } => {
             println!("Daemon Status:");
-            let current_str = current_wallpaper.map_or_else(|| "None".to_string(), |p| p.to_string_lossy().into_owned());
+            let current_str = current_wallpaper
+                .map_or_else(|| "None".to_string(), |p| p.to_string_lossy().into_owned());
             println!("  Current Wallpaper: {current_str}");
             println!("  Scheduler Active:  {scheduler_active}");
             println!("  Next Change In:    {next_change_in_seconds} seconds");

@@ -3,7 +3,9 @@ use lw_transition::interpolate;
 
 #[test]
 fn test_interpolate_boundaries() {
-    for &easing in &[EasingType::Linear, EasingType::EaseIn, EasingType::EaseOut, EasingType::EaseInOut] {
+    for &easing in
+        &[EasingType::Linear, EasingType::EaseIn, EasingType::EaseOut, EasingType::EaseInOut]
+    {
         // Test exact boundaries
         assert!((interpolate(0.0, easing) - 0.0).abs() < f32::EPSILON);
         assert!((interpolate(1.0, easing) - 1.0).abs() < f32::EPSILON);
@@ -41,7 +43,7 @@ fn test_ease_out_interpolation() {
 fn test_ease_in_out_interpolation() {
     // EaseInOut is symmetric around (0.5, 0.5)
     assert!((interpolate(0.5, EasingType::EaseInOut) - 0.5).abs() < f32::EPSILON);
-    
+
     // First half decelerates/accelerates slower than linear
     assert!((interpolate(0.25, EasingType::EaseInOut) - 0.125).abs() < f32::EPSILON);
     assert!(interpolate(0.25, EasingType::EaseInOut) < 0.25);

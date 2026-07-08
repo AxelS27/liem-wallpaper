@@ -1,11 +1,11 @@
+use crate::fullscreen::is_fullscreen_app_running;
+use crate::ipc::run_transition_and_set;
 use lw_core::config::Config;
 use lw_core::traits::WallpaperManager;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tracing::{error, info};
-use crate::fullscreen::is_fullscreen_app_running;
-use crate::ipc::run_transition_and_set;
 
 #[derive(Debug, Clone, Default)]
 pub struct SchedulerState {
@@ -23,7 +23,8 @@ pub fn get_wallpaper_files(dir: &Path) -> Vec<PathBuf> {
             if path.is_file() {
                 if let Some(ext) = path.extension() {
                     let ext_str = ext.to_string_lossy().to_lowercase();
-                    if ext_str == "png" || ext_str == "jpg" || ext_str == "jpeg" || ext_str == "bmp" {
+                    if ext_str == "png" || ext_str == "jpg" || ext_str == "jpeg" || ext_str == "bmp"
+                    {
                         files.push(path);
                     }
                 }
@@ -115,7 +116,8 @@ pub async fn run_scheduler<W>(
             // Check for fullscreen games/apps to defer rotation
             if is_fullscreen_app_running() {
                 // Delay checks by 10s intervals until app exits fullscreen
-                last_run = Instant::now().checked_sub(interval).unwrap_or_else(Instant::now) + Duration::from_secs(10);
+                last_run = Instant::now().checked_sub(interval).unwrap_or_else(Instant::now)
+                    + Duration::from_secs(10);
                 {
                     let mut st = state.lock().unwrap();
                     st.next_change_at = Some(last_run + interval);
@@ -135,7 +137,9 @@ pub async fn run_scheduler<W>(
                     easing: transition_default.easing,
                 };
 
-                if let Err(e) = run_transition_and_set(&target_wp, &params, wallpaper_manager.as_ref()) {
+                if let Err(e) =
+                    run_transition_and_set(&target_wp, &params, wallpaper_manager.as_ref())
+                {
                     error!("Scheduler failed to perform transition: {e:?}");
                 }
             }
@@ -166,10 +170,10 @@ pub fn select_next_wallpaper(
             .unwrap_or(0);
         let seed = u64::try_from(seed & 0xFFFF_FFFF_FFFF_FFFF).unwrap_or(0);
         let mut rng = LcgRng::new(seed);
-        
+
         let current_index = wallpapers.iter().position(|p| p == current_wp);
         let mut next_index = rng.next_range(0..=(wallpapers.len() - 1));
-        
+
         if let Some(curr) = current_index {
             if next_index == curr {
                 next_index = (next_index + 1) % wallpapers.len();
@@ -194,12 +198,15 @@ impl LcgRng {
     fn new(seed: u64) -> Self {
         Self { state: seed.wrapping_add(1_442_695_040_888_963_407) }
     }
-    
+
     fn next_u64(&mut self) -> u64 {
-        self.state = self.state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        self.state = self
+            .state
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
         self.state
     }
-    
+
     fn next_range(&mut self, range: std::ops::RangeInclusive<usize>) -> usize {
         let low = *range.start();
         let high = *range.end();

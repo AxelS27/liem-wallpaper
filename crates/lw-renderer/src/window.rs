@@ -1,12 +1,11 @@
 use lw_core::error::LwError;
-use windows::Win32::Foundation::{HWND, RECT, LPARAM, BOOL, TRUE, FALSE};
-use windows::Win32::UI::WindowsAndMessaging::{
-    FindWindowW, FindWindowExW, SendMessageTimeoutW, EnumWindows, SMTO_NORMAL,
-    GetClassNameW, SetWindowPos, GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE,
-    WS_EX_TRANSPARENT, WS_EX_LAYERED, WS_EX_NOACTIVATE, SWP_NOZORDER,
-    SWP_SHOWWINDOW, SWP_NOACTIVATE,
-};
 use windows::core::w;
+use windows::Win32::Foundation::{BOOL, FALSE, HWND, LPARAM, RECT, TRUE};
+use windows::Win32::UI::WindowsAndMessaging::{
+    EnumWindows, FindWindowExW, FindWindowW, GetClassNameW, GetWindowLongPtrW, SendMessageTimeoutW,
+    SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, SMTO_NORMAL, SWP_NOACTIVATE, SWP_NOZORDER,
+    SWP_SHOWWINDOW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TRANSPARENT,
+};
 
 struct SearchContext {
     worker_w: HWND,
@@ -71,12 +70,14 @@ pub fn find_worker_w() -> Result<HWND, LwError> {
     let mut ctx = SearchContext { worker_w: HWND(0) };
 
     unsafe {
-        let _ = EnumWindows(Some(enum_windows_callback), LPARAM(std::ptr::addr_of_mut!(ctx) as isize));
+        let _ =
+            EnumWindows(Some(enum_windows_callback), LPARAM(std::ptr::addr_of_mut!(ctx) as isize));
     }
 
     if ctx.worker_w.0 == 0 {
         unsafe {
-            let _ = EnumWindows(Some(fallback_callback), LPARAM(std::ptr::addr_of_mut!(ctx) as isize));
+            let _ =
+                EnumWindows(Some(fallback_callback), LPARAM(std::ptr::addr_of_mut!(ctx) as isize));
         }
     }
 
@@ -94,9 +95,10 @@ pub fn set_click_through(hwnd: HWND) -> Result<(), LwError> {
     unsafe {
         let current_exstyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
         // Cast U32 flags to i32 first to prevent clippy warning on 32-bit targets
-        let flags = i32::try_from(WS_EX_TRANSPARENT.0 | WS_EX_LAYERED.0 | WS_EX_NOACTIVATE.0).unwrap_or(0);
+        let flags =
+            i32::try_from(WS_EX_TRANSPARENT.0 | WS_EX_LAYERED.0 | WS_EX_NOACTIVATE.0).unwrap_or(0);
         let new_exstyle = current_exstyle | flags as isize;
-        
+
         // Set the modified styles back
         SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_exstyle);
     }

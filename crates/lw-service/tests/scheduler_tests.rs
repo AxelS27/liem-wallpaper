@@ -1,4 +1,4 @@
-use lw_service::scheduler::{select_next_wallpaper, get_wallpaper_files};
+use lw_service::scheduler::{get_wallpaper_files, select_next_wallpaper};
 use std::fs::File;
 use std::path::{Path, PathBuf};
 
@@ -40,11 +40,8 @@ fn test_get_wallpaper_files_filtering() {
 
 #[test]
 fn test_select_next_wallpaper_sequential() {
-    let wallpapers = vec![
-        PathBuf::from("wp1.png"),
-        PathBuf::from("wp2.png"),
-        PathBuf::from("wp3.png"),
-    ];
+    let wallpapers =
+        vec![PathBuf::from("wp1.png"), PathBuf::from("wp2.png"), PathBuf::from("wp3.png")];
 
     // Starts at first when current is not in list or empty
     let next = select_next_wallpaper(&wallpapers, Path::new(""), false).unwrap();
@@ -64,11 +61,8 @@ fn test_select_next_wallpaper_sequential() {
 
 #[test]
 fn test_select_next_wallpaper_shuffle() {
-    let wallpapers = vec![
-        PathBuf::from("wp1.png"),
-        PathBuf::from("wp2.png"),
-        PathBuf::from("wp3.png"),
-    ];
+    let wallpapers =
+        vec![PathBuf::from("wp1.png"), PathBuf::from("wp2.png"), PathBuf::from("wp3.png")];
 
     // Shuffle should avoid selecting the current wallpaper if possible
     let mut different_count = 0;

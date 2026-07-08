@@ -20,7 +20,7 @@ fn test_default_config() {
 #[test]
 fn test_invalid_transition_duration() {
     let mut config = Config::default();
-    
+
     // Too short (minimum is 100ms)
     config.transition_default.duration_ms = 99;
     assert!(config.validate().is_err());
@@ -40,7 +40,7 @@ fn test_invalid_transition_duration() {
 #[test]
 fn test_invalid_scheduler_interval() {
     let mut config = Config::default();
-    
+
     // Invalid (minimum is 1 min)
     config.scheduler.interval_mins = 0;
     assert!(config.validate().is_err());
@@ -53,7 +53,7 @@ fn test_invalid_scheduler_interval() {
 #[test]
 fn test_wallpaper_dir_validation() {
     let mut config = Config::default();
-    
+
     // A directory that does not exist
     config.wallpaper_dir = PathBuf::from("Z:\\this\\path\\does\\not\\exist\\hopefully");
     assert!(config.validate().is_err());
@@ -90,13 +90,13 @@ fn test_save_and_load_file() {
     config.transition_default.duration_ms = 1500;
 
     let temp_file_path = std::env::temp_dir().join("liem_wallpaper_test_config.toml");
-    
+
     // Save to file
     config.save_to_file(&temp_file_path).expect("Failed to save config to file");
-    
+
     // Load from file
     let loaded = Config::load_from_file(&temp_file_path).expect("Failed to load config from file");
-    
+
     assert_eq!(config, loaded);
 
     // Clean up

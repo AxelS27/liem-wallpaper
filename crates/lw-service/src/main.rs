@@ -1,7 +1,7 @@
 use lw_core::logging::init_logging;
-use lw_wallpaper::DesktopWallpaperManager;
 use lw_service::ipc::run_ipc_server;
 use lw_service::scheduler::{run_scheduler, SchedulerState};
+use lw_wallpaper::DesktopWallpaperManager;
 use std::sync::{Arc, Mutex};
 use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
 
@@ -25,9 +25,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 3b. Setup default HLSL shaders inside AppData/LiemWallpaper/shaders
     let shader_dir = config_dir.join("shaders");
     let _ = std::fs::create_dir_all(&shader_dir);
-    let _ = std::fs::write(shader_dir.join("fade.hlsl"), include_str!("../../../shaders/fade.hlsl"));
-    let _ = std::fs::write(shader_dir.join("wipe.hlsl"), include_str!("../../../shaders/wipe.hlsl"));
-    let _ = std::fs::write(shader_dir.join("slide.hlsl"), include_str!("../../../shaders/slide.hlsl"));
+    let _ =
+        std::fs::write(shader_dir.join("fade.hlsl"), include_str!("../../../shaders/fade.hlsl"));
+    let _ =
+        std::fs::write(shader_dir.join("wipe.hlsl"), include_str!("../../../shaders/wipe.hlsl"));
+    let _ =
+        std::fs::write(shader_dir.join("slide.hlsl"), include_str!("../../../shaders/slide.hlsl"));
 
     // 3c. Setup default icon in AppData
     let _ = std::fs::write(config_dir.join("icon.ico"), include_bytes!("../../../assets/icon.ico"));

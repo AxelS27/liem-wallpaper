@@ -5,15 +5,10 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type")]
 pub enum IpcRequest {
-    SetWallpaper {
-        path: PathBuf,
-        transition: Option<TransitionParams>,
-    },
+    SetWallpaper { path: PathBuf, transition: Option<TransitionParams> },
     NextWallpaper,
     PrevWallpaper,
-    UpdateConfig {
-        config: Config,
-    },
+    UpdateConfig { config: Config },
     GetStatus,
 }
 

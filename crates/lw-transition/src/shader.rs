@@ -1,7 +1,7 @@
 use lw_core::error::LwError;
+use windows::core::PCSTR;
 use windows::Win32::Graphics::Direct3D::Fxc::D3DCompile;
 use windows::Win32::Graphics::Direct3D::ID3DBlob;
-use windows::core::PCSTR;
 
 /// Compiles an HLSL shader string at runtime.
 /// Returns the compiled shader byte code as an `ID3DBlob` or an error containing HLSL compiler errors.
@@ -39,12 +39,14 @@ pub fn compile_shader(
         if let Some(err) = error_blob {
             let buffer_ptr = unsafe { err.GetBufferPointer() };
             let buffer_size = unsafe { err.GetBufferSize() };
-            let error_slice = unsafe { std::slice::from_raw_parts(buffer_ptr as *const u8, buffer_size) };
+            let error_slice =
+                unsafe { std::slice::from_raw_parts(buffer_ptr as *const u8, buffer_size) };
             let error_str = String::from_utf8_lossy(error_slice).into_owned();
             return Err(LwError::Renderer(format!("HLSL compilation error: {error_str}")));
         }
         res.map_err(|e| LwError::Renderer(format!("HLSL compilation failed: {e}")))?;
     }
 
-    shader_blob.ok_or_else(|| LwError::Renderer("Shader compilation returned null blob".to_string()))
+    shader_blob
+        .ok_or_else(|| LwError::Renderer("Shader compilation returned null blob".to_string()))
 }

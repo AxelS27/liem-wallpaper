@@ -1,8 +1,8 @@
 use lw_core::error::LwError;
 use windows::core::PCWSTR;
 use windows::Win32::System::Registry::{
-    RegCreateKeyExW, RegSetValueExW, RegDeleteValueW, RegCloseKey, HKEY_CURRENT_USER, REG_SZ, HKEY,
-    KEY_WRITE, REG_OPTION_NON_VOLATILE,
+    RegCloseKey, RegCreateKeyExW, RegDeleteValueW, RegSetValueExW, HKEY, HKEY_CURRENT_USER,
+    KEY_WRITE, REG_OPTION_NON_VOLATILE, REG_SZ,
 };
 
 const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
@@ -40,10 +40,7 @@ pub fn set_startup_run(enable: bool) -> Result<(), LwError> {
                 PCWSTR(name_w.as_ptr()),
                 0,
                 REG_SZ,
-                Some(std::slice::from_raw_parts(
-                    value_w.as_ptr() as *const u8,
-                    value_w.len() * 2,
-                )),
+                Some(std::slice::from_raw_parts(value_w.as_ptr() as *const u8, value_w.len() * 2)),
             ) {
                 Err(LwError::Ipc(format!("Failed to write Registry key: {e}")))
             } else {
@@ -51,7 +48,8 @@ pub fn set_startup_run(enable: bool) -> Result<(), LwError> {
             }
         } else {
             match RegDeleteValueW(hkey, PCWSTR(name_w.as_ptr())) {
-                Err(e) if e.code().0 as u32 != 2 => { // 2 = ERROR_FILE_NOT_FOUND
+                Err(e) if e.code().0 as u32 != 2 => {
+                    // 2 = ERROR_FILE_NOT_FOUND
                     Err(LwError::Ipc(format!("Failed to delete Registry key: {e}")))
                 }
                 _ => Ok(()),

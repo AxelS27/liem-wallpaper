@@ -1,6 +1,6 @@
+use crate::error::LwError;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use crate::error::LwError;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Config {
@@ -58,22 +58,13 @@ impl Default for Config {
 
 impl Default for TransitionConfig {
     fn default() -> Self {
-        Self {
-            effect_type: "fade".to_string(),
-            duration_ms: 1000,
-            easing: EasingType::EaseInOut,
-        }
+        Self { effect_type: "fade".to_string(), duration_ms: 1000, easing: EasingType::EaseInOut }
     }
 }
 
 impl Default for SchedulerConfig {
     fn default() -> Self {
-        Self {
-            enabled: true,
-            interval_mins: 15,
-            change_on_startup: true,
-            run_on_startup: false,
-        }
+        Self { enabled: true, interval_mins: 15, change_on_startup: true, run_on_startup: false }
     }
 }
 
@@ -95,8 +86,9 @@ impl Config {
 
     pub fn load_from_file<P: AsRef<std::path::Path>>(path: P) -> Result<Self, LwError> {
         let content = std::fs::read_to_string(path)?;
-        let config: Config = toml::from_str(&content)
-            .map_err(|e| LwError::Serialization(format!("Failed to deserialize config TOML: {e}")))?;
+        let config: Config = toml::from_str(&content).map_err(|e| {
+            LwError::Serialization(format!("Failed to deserialize config TOML: {e}"))
+        })?;
         config.validate()?;
         Ok(config)
     }

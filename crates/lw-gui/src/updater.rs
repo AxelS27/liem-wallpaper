@@ -39,19 +39,17 @@ pub fn compare_versions(current: &str, latest: &str) -> bool {
 
 pub fn check_for_updates(current_version: &str) -> Result<Option<UpdateInfo>, String> {
     let url = "https://api.github.com/repos/AxelS27/liem-wallpaper/releases/latest";
-    let agent = ureq::AgentBuilder::new()
-        .user_agent("LiemWallpaperUpdater/1.0")
-        .build();
+    let agent = ureq::AgentBuilder::new().user_agent("LiemWallpaperUpdater/1.0").build();
 
-    let response = agent.get(url)
-        .call()
-        .map_err(|e| format!("Failed to fetch release API: {e}"))?;
+    let response =
+        agent.get(url).call().map_err(|e| format!("Failed to fetch release API: {e}"))?;
 
-    let release: serde_json::Value = response.into_json::<serde_json::Value>()
+    let release: serde_json::Value = response
+        .into_json::<serde_json::Value>()
         .map_err(|e| format!("Failed to parse release JSON: {e}"))?;
 
-    let tag_name = release["tag_name"].as_str()
-        .ok_or_else(|| "Missing tag_name in release".to_string())?;
+    let tag_name =
+        release["tag_name"].as_str().ok_or_else(|| "Missing tag_name in release".to_string())?;
 
     if compare_versions(current_version, tag_name) {
         // Find lw-setup.exe in assets
@@ -76,13 +74,9 @@ pub fn check_for_updates(current_version: &str) -> Result<Option<UpdateInfo>, St
 }
 
 pub fn download_and_run_installer(url: &str) -> Result<(), String> {
-    let agent = ureq::AgentBuilder::new()
-        .user_agent("LiemWallpaperUpdater/1.0")
-        .build();
+    let agent = ureq::AgentBuilder::new().user_agent("LiemWallpaperUpdater/1.0").build();
 
-    let response = agent.get(url)
-        .call()
-        .map_err(|e| format!("Failed to download update: {e}"))?;
+    let response = agent.get(url).call().map_err(|e| format!("Failed to download update: {e}"))?;
 
     let mut reader = response.into_reader();
     let mut file_bytes = Vec::new();
@@ -123,11 +117,11 @@ mod tests {
         // Newer patches
         assert!(compare_versions("0.1.0", "0.1.1"));
         assert!(compare_versions("v0.1.0", "v0.1.5"));
-        
+
         // Newer minor versions
         assert!(compare_versions("0.1.0", "0.2.0"));
         assert!(compare_versions("0.1.9", "0.2.0"));
-        
+
         // Newer major versions
         assert!(compare_versions("0.9.9", "1.0.0"));
         assert!(compare_versions("v1.5.0", "v2.0.0"));

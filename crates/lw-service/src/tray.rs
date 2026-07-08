@@ -2,13 +2,13 @@ use std::path::PathBuf;
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::UI::Shell::{
-    Shell_NotifyIconW, NIM_ADD, NIM_DELETE, NOTIFYICONDATAW, NIF_ICON, NIF_MESSAGE, NIF_TIP,
+    Shell_NotifyIconW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NOTIFYICONDATAW,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    RegisterClassW, CreateWindowExW, DefWindowProcW, WNDCLASSW, HICON,
-    LoadImageW, IMAGE_ICON, LR_LOADFROMFILE, CreatePopupMenu, AppendMenuW, TrackPopupMenu,
-    GetCursorPos, SetForegroundWindow, GetMessageW, DispatchMessageW, TranslateMessage,
-    WM_USER, MF_STRING, TPM_RETURNCMD, MSG, WM_RBUTTONUP, WM_LBUTTONDBLCLK,
+    AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DispatchMessageW, GetCursorPos,
+    GetMessageW, LoadImageW, RegisterClassW, SetForegroundWindow, TrackPopupMenu, TranslateMessage,
+    HICON, IMAGE_ICON, LR_LOADFROMFILE, MF_STRING, MSG, TPM_RETURNCMD, WM_LBUTTONDBLCLK,
+    WM_RBUTTONUP, WM_USER, WNDCLASSW,
 };
 
 const WM_TRAYICON: u32 = WM_USER + 100;
@@ -29,25 +29,51 @@ unsafe extern "system" fn window_proc(
                 let _ = GetCursorPos(&mut pos);
 
                 let hmenu = CreatePopupMenu().unwrap();
-                let _ = AppendMenuW(hmenu, MF_STRING, 1, PCWSTR("Open Settings".encode_utf16().chain(std::iter::once(0)).collect::<Vec<u16>>().as_ptr()));
-                let _ = AppendMenuW(hmenu, MF_STRING, 2, PCWSTR("Skip Wallpaper".encode_utf16().chain(std::iter::once(0)).collect::<Vec<u16>>().as_ptr()));
-                let _ = AppendMenuW(hmenu, MF_STRING, 3, PCWSTR("Exit".encode_utf16().chain(std::iter::once(0)).collect::<Vec<u16>>().as_ptr()));
+                let _ = AppendMenuW(
+                    hmenu,
+                    MF_STRING,
+                    1,
+                    PCWSTR(
+                        "Open Settings"
+                            .encode_utf16()
+                            .chain(std::iter::once(0))
+                            .collect::<Vec<u16>>()
+                            .as_ptr(),
+                    ),
+                );
+                let _ = AppendMenuW(
+                    hmenu,
+                    MF_STRING,
+                    2,
+                    PCWSTR(
+                        "Skip Wallpaper"
+                            .encode_utf16()
+                            .chain(std::iter::once(0))
+                            .collect::<Vec<u16>>()
+                            .as_ptr(),
+                    ),
+                );
+                let _ = AppendMenuW(
+                    hmenu,
+                    MF_STRING,
+                    3,
+                    PCWSTR(
+                        "Exit"
+                            .encode_utf16()
+                            .chain(std::iter::once(0))
+                            .collect::<Vec<u16>>()
+                            .as_ptr(),
+                    ),
+                );
 
                 let _ = SetForegroundWindow(hwnd);
-                let command = TrackPopupMenu(
-                    hmenu,
-                    TPM_RETURNCMD,
-                    pos.x,
-                    pos.y,
-                    0,
-                    hwnd,
-                    None,
-                );
+                let command = TrackPopupMenu(hmenu, TPM_RETURNCMD, pos.x, pos.y, 0, hwnd, None);
 
                 match command.0 {
                     1 => {
                         // Open Settings
-                        let local_app_data = std::env::var("USERPROFILE").unwrap_or_else(|_| ".".to_string());
+                        let local_app_data =
+                            std::env::var("USERPROFILE").unwrap_or_else(|_| ".".to_string());
                         let gui_path = PathBuf::from(local_app_data)
                             .join("AppData")
                             .join("Local")
@@ -74,14 +100,18 @@ unsafe extern "system" fn window_proc(
                     }
                     3 => {
                         // Exit daemon
-                        let _ = Shell_NotifyIconW(NIM_DELETE, &get_tray_icon_data(hwnd, HICON::default()));
+                        let _ = Shell_NotifyIconW(
+                            NIM_DELETE,
+                            &get_tray_icon_data(hwnd, HICON::default()),
+                        );
                         std::process::exit(0);
                     }
                     _ => {}
                 }
             } else if event == WM_LBUTTONDBLCLK {
                 // Double click opens Settings
-                let local_app_data = std::env::var("USERPROFILE").unwrap_or_else(|_| ".".to_string());
+                let local_app_data =
+                    std::env::var("USERPROFILE").unwrap_or_else(|_| ".".to_string());
                 let gui_path = PathBuf::from(local_app_data)
                     .join("AppData")
                     .join("Local")
@@ -116,7 +146,8 @@ fn get_tray_icon_data(hwnd: HWND, hicon: HICON) -> NOTIFYICONDATAW {
 
 pub fn start_tray_icon() {
     std::thread::spawn(|| unsafe {
-        let class_name: Vec<u16> = "LiemWallpaperTrayClass".encode_utf16().chain(std::iter::once(0)).collect();
+        let class_name: Vec<u16> =
+            "LiemWallpaperTrayClass".encode_utf16().chain(std::iter::once(0)).collect();
         let instance = windows::Win32::System::LibraryLoader::GetModuleHandleW(None).unwrap();
 
         let wnd_class = WNDCLASSW {
@@ -146,16 +177,11 @@ pub fn start_tray_icon() {
         // Load Icon
         let app_data = std::env::var("APPDATA").unwrap_or_else(|_| ".".to_string());
         let icon_path = PathBuf::from(app_data).join("LiemWallpaper").join("icon.ico");
-        let icon_path_w: Vec<u16> = icon_path.to_string_lossy().encode_utf16().chain(std::iter::once(0)).collect();
+        let icon_path_w: Vec<u16> =
+            icon_path.to_string_lossy().encode_utf16().chain(std::iter::once(0)).collect();
 
-        let hicon = LoadImageW(
-            None,
-            PCWSTR(icon_path_w.as_ptr()),
-            IMAGE_ICON,
-            0,
-            0,
-            LR_LOADFROMFILE,
-        );
+        let hicon =
+            LoadImageW(None, PCWSTR(icon_path_w.as_ptr()), IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
 
         if let Ok(hicon) = hicon {
             let hicon = HICON(hicon.0);

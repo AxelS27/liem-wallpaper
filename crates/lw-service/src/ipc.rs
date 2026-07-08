@@ -1,8 +1,11 @@
+use lw_core::{
+    traits::{TransitionRenderer, WallpaperManager},
+    IpcRequest, IpcResponse,
+};
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::windows::named_pipe::ServerOptions;
 use tracing::{error, info};
-use lw_core::{IpcRequest, IpcResponse, traits::{WallpaperManager, TransitionRenderer}};
 use windows::Win32::Foundation::RECT;
 
 pub const PIPE_NAME: &str = r"\\.\pipe\liem-wallpaper";
@@ -21,10 +24,10 @@ where
 
     let mut is_first = true;
     loop {
-        let server = ServerOptions::new()
-            .first_pipe_instance(is_first)
-            .create(PIPE_NAME)
-            .map_err(|e| lw_core::LwError::Ipc(format!("Failed to create named pipe server: {e}")))?;
+        let server =
+            ServerOptions::new().first_pipe_instance(is_first).create(PIPE_NAME).map_err(|e| {
+                lw_core::LwError::Ipc(format!("Failed to create named pipe server: {e}"))
+            })?;
 
         is_first = false;
 
@@ -67,9 +70,7 @@ where
         let request: IpcRequest = match serde_json::from_str(&line) {
             Ok(req) => req,
             Err(e) => {
-                let response = IpcResponse::Error {
-                    message: format!("Invalid JSON request: {e}"),
-                };
+                let response = IpcResponse::Error { message: format!("Invalid JSON request: {e}") };
                 let mut response_bytes = serde_json::to_vec(&response).unwrap_or_default();
                 response_bytes.push(b'\n');
                 let _ = writer.write_all(&response_bytes).await;
@@ -106,7 +107,9 @@ where
                     match run_transition_and_set(&path, t_params, wallpaper_manager.as_ref()) {
                         Ok(()) => Ok(()),
                         Err(e) => {
-                            error!("Transition failed: {e:?}. Falling back to native wallpaper set.");
+                            error!(
+                                "Transition failed: {e:?}. Falling back to native wallpaper set."
+                            );
                             wallpaper_manager.set_wallpaper(&path)
                         }
                     }
@@ -116,9 +119,9 @@ where
 
                 match res {
                     Ok(()) => IpcResponse::Success,
-                    Err(e) => IpcResponse::Error {
-                        message: format!("Failed to set wallpaper: {e}"),
-                    },
+                    Err(e) => {
+                        IpcResponse::Error { message: format!("Failed to set wallpaper: {e}") }
+                    }
                 }
             }
             IpcRequest::NextWallpaper | IpcRequest::PrevWallpaper => {
@@ -133,7 +136,9 @@ where
                     }
                 } else {
                     let current = wallpaper_manager.get_current_wallpaper().unwrap_or_default();
-                    if let Some(next_wp) = crate::scheduler::select_next_wallpaper(&files, &current, shuffle) {
+                    if let Some(next_wp) =
+                        crate::scheduler::select_next_wallpaper(&files, &current, shuffle)
+                    {
                         let params = {
                             let cfg = config.lock().unwrap();
                             lw_core::ipc::TransitionParams {
@@ -142,7 +147,8 @@ where
                                 easing: cfg.transition_default.easing,
                             }
                         };
-                        match run_transition_and_set(&next_wp, &params, wallpaper_manager.as_ref()) {
+                        match run_transition_and_set(&next_wp, &params, wallpaper_manager.as_ref())
+                        {
                             Ok(()) => IpcResponse::Success,
                             Err(e) => IpcResponse::Error {
                                 message: format!("Failed to set next wallpaper: {e}"),
@@ -164,8 +170,9 @@ where
         };
 
         // Serialize and send response
-        let mut response_bytes = serde_json::to_vec(&response)
-            .map_err(|e| lw_core::LwError::Serialization(format!("Failed to serialize response: {e}")))?;
+        let mut response_bytes = serde_json::to_vec(&response).map_err(|e| {
+            lw_core::LwError::Serialization(format!("Failed to serialize response: {e}"))
+        })?;
         response_bytes.push(b'\n');
 
         writer.write_all(&response_bytes).await?;
@@ -190,19 +197,15 @@ where
     let monitors_rects = wallpaper_manager.get_monitor_rects()?;
     let monitors_bounds: Vec<RECT> = monitors_rects
         .iter()
-        .map(|r| RECT {
-            left: r.left,
-            top: r.top,
-            right: r.right,
-            bottom: r.bottom,
-        })
+        .map(|r| RECT { left: r.left, top: r.top, right: r.right, bottom: r.bottom })
         .collect();
 
     // 3. Initialize D3D11 and DirectComposition
     let d3d_context = Arc::new(lw_renderer::D3D11Context::new()?);
     let worker_w = lw_renderer::find_worker_w()?;
 
-    let comp_context = Arc::new(lw_renderer::CompositionContext::new(d3d_context.device(), worker_w)?);
+    let comp_context =
+        Arc::new(lw_renderer::CompositionContext::new(d3d_context.device(), worker_w)?);
     let app_data = std::env::var("APPDATA").unwrap_or_else(|_| ".".to_string());
     let shader_dir = std::path::PathBuf::from(app_data).join("LiemWallpaper").join("shaders");
 
@@ -222,8 +225,9 @@ where
 
     // 7. Clear visual content to hide transition overlay
     unsafe {
-        comp_context.root_visual().SetContent(None)
-            .map_err(|e| lw_core::LwError::Renderer(format!("Failed to clear visual content: {e}")))?;
+        comp_context.root_visual().SetContent(None).map_err(|e| {
+            lw_core::LwError::Renderer(format!("Failed to clear visual content: {e}"))
+        })?;
         comp_context.commit()?;
     }
 

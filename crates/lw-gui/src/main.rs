@@ -4,10 +4,10 @@ slint::include_modules!();
 
 pub mod updater;
 
-use lw_core::{Config, IpcRequest, IpcResponse, EasingType};
-use std::sync::{Arc, Mutex};
-use std::path::PathBuf;
+use lw_core::{Config, EasingType, IpcRequest, IpcResponse};
 use slint::ComponentHandle;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use tokio::time::{sleep, Duration};
 
 async fn send_ipc_request(request: IpcRequest) -> Result<IpcResponse, String> {
@@ -18,22 +18,19 @@ async fn send_ipc_request(request: IpcRequest) -> Result<IpcResponse, String> {
         .open(r"\\.\pipe\liem-wallpaper")
         .map_err(|e| format!("Failed to connect to named pipe: {e}"))?;
 
-    let mut request_bytes = serde_json::to_vec(&request)
-        .map_err(|e| format!("Failed to serialize request: {e}"))?;
+    let mut request_bytes =
+        serde_json::to_vec(&request).map_err(|e| format!("Failed to serialize request: {e}"))?;
     request_bytes.push(b'\n');
 
-    client.write_all(&request_bytes).await
-        .map_err(|e| format!("Failed to write request: {e}"))?;
-    client.flush().await
-        .map_err(|e| format!("Failed to flush stream: {e}"))?;
+    client.write_all(&request_bytes).await.map_err(|e| format!("Failed to write request: {e}"))?;
+    client.flush().await.map_err(|e| format!("Failed to flush stream: {e}"))?;
 
     let mut reader = BufReader::new(client);
     let mut line = String::new();
-    reader.read_line(&mut line).await
-        .map_err(|e| format!("Failed to read response: {e}"))?;
+    reader.read_line(&mut line).await.map_err(|e| format!("Failed to read response: {e}"))?;
 
-    let response: IpcResponse = serde_json::from_str(&line)
-        .map_err(|e| format!("Failed to deserialize response: {e}"))?;
+    let response: IpcResponse =
+        serde_json::from_str(&line).map_err(|e| format!("Failed to deserialize response: {e}"))?;
 
     Ok(response)
 }
@@ -66,7 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         app.set_scheduler_interval(cfg.scheduler.interval_mins as i32);
         app.set_run_on_startup(cfg.scheduler.run_on_startup);
         app.set_update_status(format!("v{}", CARGO_PKG_VERSION).into());
-        
+
         let easing_str = match cfg.transition_default.easing {
             EasingType::Linear => "linear",
             EasingType::EaseIn => "ease-in",
@@ -81,7 +78,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::spawn(async move {
         loop {
             match send_ipc_request(IpcRequest::GetStatus).await {
-                Ok(IpcResponse::StatusResponse { current_wallpaper, scheduler_active: _, next_change_in_seconds: _ }) => {
+                Ok(IpcResponse::StatusResponse {
+                    current_wallpaper,
+                    scheduler_active: _,
+                    next_change_in_seconds: _,
+                }) => {
                     let wp_str = current_wallpaper
                         .map(|p| p.to_string_lossy().into_owned())
                         .unwrap_or_else(|| "None".to_string());
@@ -107,30 +108,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 5. Connect UI Callbacks
     let config_clone = Arc::clone(&config);
     let config_path_clone = config_path.clone();
-    app.on_apply_settings(move |effect, duration, scheduler_enabled, interval, easing, run_on_startup| {
-        let mut cfg = config_clone.lock().unwrap();
-        cfg.transition_default.effect_type = effect.to_string();
-        cfg.transition_default.duration_ms = duration as u32;
-        cfg.scheduler.enabled = scheduler_enabled;
-        cfg.scheduler.interval_mins = interval as u32;
-        cfg.scheduler.run_on_startup = run_on_startup;
-        
-        cfg.transition_default.easing = match easing.as_str() {
-            "linear" => EasingType::Linear,
-            "ease-in" => EasingType::EaseIn,
-            "ease-out" => EasingType::EaseOut,
-            _ => EasingType::EaseInOut,
-        };
+    app.on_apply_settings(
+        move |effect, duration, scheduler_enabled, interval, easing, run_on_startup| {
+            let mut cfg = config_clone.lock().unwrap();
+            cfg.transition_default.effect_type = effect.to_string();
+            cfg.transition_default.duration_ms = duration as u32;
+            cfg.scheduler.enabled = scheduler_enabled;
+            cfg.scheduler.interval_mins = interval as u32;
+            cfg.scheduler.run_on_startup = run_on_startup;
 
-        // Save locally
-        let _ = cfg.save_to_file(&config_path_clone);
+            cfg.transition_default.easing = match easing.as_str() {
+                "linear" => EasingType::Linear,
+                "ease-in" => EasingType::EaseIn,
+                "ease-out" => EasingType::EaseOut,
+                _ => EasingType::EaseInOut,
+            };
 
-        // Notify daemon asynchronously
-        let cfg_payload = cfg.clone();
-        tokio::spawn(async move {
-            let _ = send_ipc_request(IpcRequest::UpdateConfig { config: cfg_payload }).await;
-        });
-    });
+            // Save locally
+            let _ = cfg.save_to_file(&config_path_clone);
+
+            // Notify daemon asynchronously
+            let cfg_payload = cfg.clone();
+            tokio::spawn(async move {
+                let _ = send_ipc_request(IpcRequest::UpdateConfig { config: cfg_payload }).await;
+            });
+        },
+    );
 
     app.on_trigger_next(move || {
         tokio::spawn(async move {
@@ -145,10 +148,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let _ = ui_weak.upgrade_in_event_loop(|ui| {
                 ui.set_update_status("Checking...".into());
             });
-            
-            let check_res = tokio::task::spawn_blocking(move || {
-                updater::check_for_updates(CARGO_PKG_VERSION)
-            }).await;
+
+            let check_res =
+                tokio::task::spawn_blocking(move || updater::check_for_updates(CARGO_PKG_VERSION))
+                    .await;
 
             match check_res {
                 Ok(Ok(Some(info))) => {
@@ -184,16 +187,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     app.on_apply_update(move || {
         let ui_weak = ui_weak.clone();
         tokio::spawn(async move {
-            let url = ui_weak.upgrade().map(|ui| ui.get_latest_version_url().to_string()).unwrap_or_default();
-            if url.is_empty() { return; }
+            let url = ui_weak
+                .upgrade()
+                .map(|ui| ui.get_latest_version_url().to_string())
+                .unwrap_or_default();
+            if url.is_empty() {
+                return;
+            }
 
             let _ = ui_weak.upgrade_in_event_loop(|ui| {
                 ui.set_update_status("Downloading...".into());
             });
 
-            let download_res = tokio::task::spawn_blocking(move || {
-                updater::download_and_run_installer(&url)
-            }).await;
+            let download_res =
+                tokio::task::spawn_blocking(move || updater::download_and_run_installer(&url))
+                    .await;
 
             match download_res {
                 Ok(Ok(())) => {

@@ -1,11 +1,10 @@
 use lw_core::error::LwError;
 use windows::Win32::Graphics::Direct3D::{
-    D3D_DRIVER_TYPE_HARDWARE, D3D_FEATURE_LEVEL, D3D_FEATURE_LEVEL_11_0,
-    D3D_FEATURE_LEVEL_11_1,
+    D3D_DRIVER_TYPE_HARDWARE, D3D_FEATURE_LEVEL, D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_11_1,
 };
 use windows::Win32::Graphics::Direct3D11::{
     D3D11CreateDevice, ID3D11Device, ID3D11DeviceContext, D3D11_CREATE_DEVICE_BGRA_SUPPORT,
-    D3D11_SDK_VERSION, D3D11_CREATE_DEVICE_FLAG,
+    D3D11_CREATE_DEVICE_FLAG, D3D11_SDK_VERSION,
 };
 
 pub struct D3D11Context {
@@ -20,10 +19,7 @@ impl D3D11Context {
         let mut device_context = None;
         let mut feature_level = D3D_FEATURE_LEVEL::default();
 
-        let feature_levels = [
-            D3D_FEATURE_LEVEL_11_1,
-            D3D_FEATURE_LEVEL_11_0,
-        ];
+        let feature_levels = [D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0];
 
         // Enable debug layer in debug builds (if SDK is available)
         let mut flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
@@ -70,13 +66,10 @@ impl D3D11Context {
         create_res.map_err(|e| LwError::Renderer(format!("Failed to create D3D11 device: {e}")))?;
 
         let device = device.ok_or_else(|| LwError::Renderer("D3D11 device is null".to_string()))?;
-        let device_context = device_context.ok_or_else(|| LwError::Renderer("D3D11 context is null".to_string()))?;
+        let device_context =
+            device_context.ok_or_else(|| LwError::Renderer("D3D11 context is null".to_string()))?;
 
-        Ok(Self {
-            device,
-            device_context,
-            feature_level,
-        })
+        Ok(Self { device, device_context, feature_level })
     }
 
     #[must_use]
