@@ -38,7 +38,7 @@ pub fn compare_versions(current: &str, latest: &str) -> bool {
 }
 
 pub fn check_for_updates(current_version: &str) -> Result<Option<UpdateInfo>, String> {
-    let url = "https://api.github.com/repos/AxelS27/liem-wallpaper-releases/releases/latest";
+    let url = "https://api.github.com/repos/AxelS27/liem-wallpaper/releases/latest";
     let agent = ureq::AgentBuilder::new()
         .user_agent("LiemWallpaperUpdater/1.0")
         .build();
