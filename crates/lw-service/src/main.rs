@@ -29,6 +29,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _ = std::fs::write(shader_dir.join("wipe.hlsl"), include_str!("../../../shaders/wipe.hlsl"));
     let _ = std::fs::write(shader_dir.join("slide.hlsl"), include_str!("../../../shaders/slide.hlsl"));
 
+    // 3c. Setup default icon in AppData
+    let _ = std::fs::write(config_dir.join("icon.ico"), include_bytes!("../../../assets/icon.ico"));
+
     let config_val = lw_core::Config::load_from_file(&config_path).unwrap_or_else(|_| {
         let default_cfg = lw_core::Config::default();
         // Try to save default config so user has a template
@@ -54,6 +57,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::spawn(async move {
         run_scheduler(scheduler_config, scheduler_wm, scheduler_st).await;
     });
+
+    // 6b. Start the System Tray Icon (runs in background Win32 thread)
+    lw_service::tray::start_tray_icon();
 
     // 7. Start Named Pipe IPC Server loop (runs on main thread)
     run_ipc_server(Arc::clone(&config), wallpaper_manager, scheduler_state).await?;
