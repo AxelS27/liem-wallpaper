@@ -1,0 +1,12 @@
+[package]
+name = "lw-renderer"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+lw-core = { workspace = true }
+windows = { workspace = true }
+
+[lints]
+workspace = true

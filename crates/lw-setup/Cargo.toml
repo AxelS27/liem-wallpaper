@@ -1,0 +1,11 @@
+[package]
+name = "lw-setup"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+windows = { workspace = true, features = ["Win32_System_Registry", "Win32_Foundation"] }
+
+[lints]
+workspace = true
