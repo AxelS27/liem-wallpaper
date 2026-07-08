@@ -2,7 +2,9 @@ use lw_core::error::LwError;
 use lw_core::traits::{MonitorRect, WallpaperManager};
 use std::path::{Path, PathBuf};
 use windows::core::PCWSTR;
-use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CoTaskMemFree, CLSCTX_ALL, COINIT_MULTITHREADED};
+use windows::Win32::System::Com::{
+    CoCreateInstance, CoInitializeEx, CoTaskMemFree, CLSCTX_ALL, COINIT_MULTITHREADED,
+};
 use windows::Win32::UI::Shell::{DesktopWallpaper, IDesktopWallpaper};
 
 pub mod monitor;

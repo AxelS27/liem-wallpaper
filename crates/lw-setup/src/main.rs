@@ -290,6 +290,10 @@ fn remove_from_path() -> Result<(), String> {
 }
 
 fn install() -> std::io::Result<()> {
+    // Kill any running instances first to unlock the files
+    let _ = std::process::Command::new("taskkill").args(&["/F", "/IM", "lw-service.exe"]).status();
+    let _ = std::process::Command::new("taskkill").args(&["/F", "/IM", "lw-gui.exe"]).status();
+
     let install_dir = get_install_dir();
     fs::create_dir_all(&install_dir)?;
 
