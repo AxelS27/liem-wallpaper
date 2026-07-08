@@ -2798,7 +2798,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "lw-cli"
+name = "lw"
 version = "0.1.0"
 dependencies = [
  "clap",

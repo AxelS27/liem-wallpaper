@@ -1,5 +1,5 @@
 [package]
-name = "lw-cli"
+name = "lw"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

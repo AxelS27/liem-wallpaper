@@ -4,13 +4,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use windows::core::PCWSTR;
 use windows::Win32::System::Registry::{
-    RegCreateKeyExW, RegSetValueExW, RegDeleteKeyW, RegCloseKey, HKEY_CURRENT_USER, REG_SZ, HKEY,
-    KEY_WRITE, REG_OPTION_NON_VOLATILE,
+    RegCreateKeyExW, RegSetValueExW, RegDeleteKeyW, RegOpenKeyExW, RegQueryValueExW, RegCloseKey, HKEY_CURRENT_USER, REG_SZ, HKEY,
+    KEY_WRITE, KEY_READ, REG_OPTION_NON_VOLATILE, REG_EXPAND_SZ,
 };
 
 // Embed release binaries
 const SERVICE_BIN: &[u8] = include_bytes!("../../../target/release/lw-service.exe");
-const CLI_BIN: &[u8] = include_bytes!("../../../target/release/lw-cli.exe");
+const CLI_BIN: &[u8] = include_bytes!("../../../target/release/lw.exe");
 const GUI_BIN: &[u8] = include_bytes!("../../../target/release/lw-gui.exe");
 
 // Embed shaders
@@ -112,6 +112,171 @@ fn delete_registry_key(subkey: &str) -> Result<(), String> {
     }
 }
 
+fn notify_env_change() {
+    let env_str = "Environment";
+    let env_w: Vec<u16> = env_str.encode_utf16().chain(std::iter::once(0)).collect();
+    let mut result = 0usize;
+    unsafe {
+        let _ = windows::Win32::UI::WindowsAndMessaging::SendMessageTimeoutW(
+            windows::Win32::UI::WindowsAndMessaging::HWND_BROADCAST,
+            windows::Win32::UI::WindowsAndMessaging::WM_SETTINGCHANGE,
+            windows::Win32::Foundation::WPARAM(0),
+            windows::Win32::Foundation::LPARAM(env_w.as_ptr() as isize),
+            windows::Win32::UI::WindowsAndMessaging::SMTO_ABORTIFHUNG,
+            5000,
+            Some(&mut result),
+        );
+    }
+}
+
+fn add_to_path() -> Result<(), String> {
+    unsafe {
+        let key_w: Vec<u16> = "Environment".encode_utf16().chain(std::iter::once(0)).collect();
+        let name_w: Vec<u16> = "Path".encode_utf16().chain(std::iter::once(0)).collect();
+
+        let mut hkey = HKEY::default();
+        if RegCreateKeyExW(
+            HKEY_CURRENT_USER,
+            PCWSTR(key_w.as_ptr()),
+            0,
+            None,
+            REG_OPTION_NON_VOLATILE,
+            KEY_READ | KEY_WRITE,
+            None,
+            &mut hkey,
+            None,
+        ).is_err() {
+            return Err("Failed to open Environment key".to_string());
+        }
+
+        // Query current Path
+        let mut data_len = 0u32;
+        let _ = RegQueryValueExW(hkey, PCWSTR(name_w.as_ptr()), None, None, None, Some(&mut data_len));
+
+        let mut current_path = String::new();
+        if data_len > 0 {
+            let mut buf = vec![0u16; (data_len as usize / 2) + 1];
+            if RegQueryValueExW(
+                hkey,
+                PCWSTR(name_w.as_ptr()),
+                None,
+                None,
+                Some(buf.as_mut_ptr() as *mut u8),
+                Some(&mut data_len),
+            ).is_ok() {
+                while buf.last() == Some(&0) {
+                    buf.pop();
+                }
+                current_path = String::from_utf16_lossy(&buf);
+            }
+        }
+
+        let install_dir = get_install_dir().to_string_lossy().into_owned();
+        
+        // Check if path is already present
+        let paths: Vec<&str> = current_path.split(';').collect();
+        let already_exists = paths.iter().any(|&p| p.trim().eq_ignore_ascii_case(&install_dir));
+
+        if !already_exists {
+            let new_path = if current_path.is_empty() {
+                install_dir
+            } else if current_path.ends_with(';') {
+                format!("{current_path}{install_dir}")
+            } else {
+                format!("{current_path};{install_dir}")
+            };
+
+            let new_path_w: Vec<u16> = new_path.encode_utf16().chain(std::iter::once(0)).collect();
+            if RegSetValueExW(
+                hkey,
+                PCWSTR(name_w.as_ptr()),
+                0,
+                REG_EXPAND_SZ,
+                Some(std::slice::from_raw_parts(
+                    new_path_w.as_ptr() as *const u8,
+                    new_path_w.len() * 2,
+                )),
+            ).is_err() {
+                let _ = RegCloseKey(hkey);
+                return Err("Failed to set Path registry value".to_string());
+            }
+
+            notify_env_change();
+        }
+
+        let _ = RegCloseKey(hkey);
+        Ok(())
+    }
+}
+
+fn remove_from_path() -> Result<(), String> {
+    unsafe {
+        let key_w: Vec<u16> = "Environment".encode_utf16().chain(std::iter::once(0)).collect();
+        let name_w: Vec<u16> = "Path".encode_utf16().chain(std::iter::once(0)).collect();
+
+        let mut hkey = HKEY::default();
+        if RegOpenKeyExW(
+            HKEY_CURRENT_USER,
+            PCWSTR(key_w.as_ptr()),
+            0,
+            KEY_READ | KEY_WRITE,
+            &mut hkey,
+        ).is_err() {
+            return Ok(()); // Ignore if key doesn't exist
+        }
+
+        // Query current Path
+        let mut data_len = 0u32;
+        let _ = RegQueryValueExW(hkey, PCWSTR(name_w.as_ptr()), None, None, None, Some(&mut data_len));
+
+        if data_len > 0 {
+            let mut buf = vec![0u16; (data_len as usize / 2) + 1];
+            if RegQueryValueExW(
+                hkey,
+                PCWSTR(name_w.as_ptr()),
+                None,
+                None,
+                Some(buf.as_mut_ptr() as *mut u8),
+                Some(&mut data_len),
+            ).is_ok() {
+                while buf.last() == Some(&0) {
+                    buf.pop();
+                }
+                let current_path = String::from_utf16_lossy(&buf);
+                let install_dir = get_install_dir().to_string_lossy().into_owned();
+
+                let mut paths: Vec<String> = current_path
+                    .split(';')
+                    .map(|p| p.trim().to_string())
+                    .collect();
+
+                let initial_len = paths.len();
+                paths.retain(|p| !p.eq_ignore_ascii_case(&install_dir));
+
+                if paths.len() != initial_len {
+                    let new_path = paths.join(";");
+                    let new_path_w: Vec<u16> = new_path.encode_utf16().chain(std::iter::once(0)).collect();
+                    if RegSetValueExW(
+                        hkey,
+                        PCWSTR(name_w.as_ptr()),
+                        0,
+                        REG_EXPAND_SZ,
+                        Some(std::slice::from_raw_parts(
+                            new_path_w.as_ptr() as *const u8,
+                            new_path_w.len() * 2,
+                        )),
+                    ).is_ok() {
+                        notify_env_change();
+                    }
+                }
+            }
+        }
+
+        let _ = RegCloseKey(hkey);
+        Ok(())
+    }
+}
+
 fn install() -> std::io::Result<()> {
     let install_dir = get_install_dir();
     fs::create_dir_all(&install_dir)?;
@@ -121,7 +286,7 @@ fn install() -> std::io::Result<()> {
 
     // Write binaries
     fs::write(install_dir.join("lw-service.exe"), SERVICE_BIN)?;
-    fs::write(install_dir.join("lw-cli.exe"), CLI_BIN)?;
+    fs::write(install_dir.join("lw.exe"), CLI_BIN)?;
     fs::write(install_dir.join("lw-gui.exe"), GUI_BIN)?;
 
     // Copy this installer itself as uninstall.exe
@@ -149,8 +314,11 @@ fn install() -> std::io::Result<()> {
     let _ = set_registry_value(uninstall_key, "InstallLocation", &install_dir.to_string_lossy());
     let _ = set_registry_value(uninstall_key, "DisplayIcon", &gui_path.to_string_lossy());
 
+    // Add installation directory to User Environment PATH
+    let _ = add_to_path();
+
     // Show completion box
-    let ps_msg = "Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show('Liem Wallpaper has been installed successfully!', 'Installation Complete')";
+    let ps_msg = "Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show('Liem Wallpaper has been installed successfully! The \"lw\" command is now available in your terminal.', 'Installation Complete')";
     let _ = std::process::Command::new("powershell")
         .args(&["-NoProfile", "-Command", ps_msg])
         .status();
@@ -189,6 +357,9 @@ fn uninstall() -> std::io::Result<()> {
             let _ = RegCloseKey(hkey);
         }
     }
+
+    // Remove installation directory from User Environment PATH
+    let _ = remove_from_path();
 
     // 4. Trigger self-deletion of directory after exit
     let install_dir = get_install_dir();

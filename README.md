@@ -23,19 +23,35 @@ The workspace is organized into modular crates:
 - **[lw-transition](crates/lw-transition/)**: Interpolation curves, transition shaders compiler, and the core rendering engine.
 - **[lw-wallpaper](crates/lw-wallpaper/)**: Native Windows COM wrapper for wallpaper manipulation and monitor coordinate discovery.
 - **[lw-service](crates/lw-service/)**: Background daemon runner, IPC server, and scheduler task loop.
-- **[lw-cli](crates/lw-cli/)**: Command-line control interface.
+- **[lw](crates/lw-cli/)**: Command-line control interface (`lw.exe`).
 - **[lw-gui](crates/lw-gui/)**: Slint-based settings monitoring UI.
+- **[lw-setup](crates/lw-setup/)**: Standalone pure Rust installer to deploy binaries, configure PATH environment, and register Windows uninstaller.
 - **[lw-plugin](crates/lw-plugin/)**: Reserved slot for dynamic shaders loading.
 
 ---
 
-## Quickstart
+## Quickstart & Installation
 
-Verify the workspace builds and all tests pass:
-```powershell
-cargo check
-cargo test
-```
+1. **Verify the workspace builds and all tests pass**:
+   ```powershell
+   cargo test
+   ```
+
+2. **Build Release Binaries & Installer**:
+   ```powershell
+   cargo build --release
+   ```
+   This compiles all binaries (including `lw-service.exe`, `lw-gui.exe`, and the CLI utility `lw.exe`) and embeds them into `target/release/lw-setup.exe`.
+
+3. **Install the Application**:
+   Run `target/release/lw-setup.exe` once.
+   This will install the program into `%LocalAppData%\Programs\LiemWallpaper`, register the `lw` command in your shell PATH, create Desktop/Start Menu shortcuts, and start the background settings UI.
+
+4. **Verify Command Line**:
+   Open a new terminal window and run:
+   ```powershell
+   lw status
+   ```
 
 For end-to-end integration scenario guides, see **[Quickstart & Verification Guide](specs/001-wallpaper-transitions/quickstart.md)**.
 For architectural design details, see **[Architecture Documentation](docs/architecture.md)**.

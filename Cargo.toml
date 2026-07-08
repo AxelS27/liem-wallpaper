@@ -56,7 +56,7 @@ lw-renderer = { path = "crates/lw-renderer" }
 lw-wallpaper = { path = "crates/lw-wallpaper" }
 lw-transition = { path = "crates/lw-transition" }
 lw-service = { path = "crates/lw-service" }
-lw-cli = { path = "crates/lw-cli" }
+lw = { path = "crates/lw-cli" }
 lw-gui = { path = "crates/lw-gui" }
 lw-plugin = { path = "crates/lw-plugin" }
 lw-setup = { path = "crates/lw-setup" }
