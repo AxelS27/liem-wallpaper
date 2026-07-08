@@ -18,10 +18,15 @@ export component AppWindow inherits Window {
     in-out property <int> scheduler-interval: 15;
     in-out property <string> active-easing: "ease-in-out";
     in-out property <bool> run-on-startup: false;
+    in-out property <string> update-status: "v0.1.0";
+    in-out property <bool> update-available: false;
+    in-out property <string> latest-version-url: "";
 
     // Callbacks to Rust
     callback apply-settings(string, int, bool, int, string, bool);
     callback trigger-next();
+    callback check-for-updates();
+    callback apply-update();
 
     VerticalLayout {
         padding: 24px;
@@ -246,6 +251,71 @@ export component AppWindow inherits Window {
                         maximum: 120;
                         value: root.scheduler-interval;
                         enabled: scheduler-check.checked;
+                    }
+                }
+            }
+        }
+
+        // Update Card
+        Rectangle {
+            background: #ffffff04;
+            border-radius: 12px;
+            border-width: 1px;
+            border-color: #ffffff0a;
+
+            VerticalLayout {
+                padding: 12px;
+                spacing: 10px;
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    
+                    HorizontalLayout {
+                        spacing: 8px;
+                        Text {
+                            text: "Software Version:";
+                            color: #cbd5e1;
+                            font-size: 13px;
+                            vertical-alignment: center;
+                        }
+                        Text {
+                            text: root.update-status;
+                            color: root.update-available ? #f59e0b : #10b981;
+                            font-weight: 700;
+                            font-size: 13px;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    // Check / Apply Button
+                    Rectangle {
+                        background: update-touch.has-hover ? #ffffff1f : #ffffff0e;
+                        border-radius: 6px;
+                        height: 28px;
+                        width: 150px;
+                        border-width: 1px;
+                        border-color: #ffffff14;
+
+                        update-touch := TouchArea {
+                            clicked => {
+                                if (root.update-available) {
+                                    root.apply-update();
+                                } else {
+                                    root.check-for-updates();
+                                }
+                            }
+                        }
+
+                        HorizontalLayout {
+                            alignment: center;
+                            Text {
+                                text: root.update-available ? "Install Update" : "Check for Updates";
+                                color: #ffffff;
+                                font-size: 12px;
+                                font-weight: 700;
+                                vertical-alignment: center;
+                            }
+                        }
                     }
                 }
             }

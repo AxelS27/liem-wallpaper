@@ -2,6 +2,8 @@
 
 slint::include_modules!();
 
+pub mod updater;
+
 use lw_core::{Config, IpcRequest, IpcResponse, EasingType};
 use std::sync::{Arc, Mutex};
 use std::path::PathBuf;
@@ -53,6 +55,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 2. Instantiate Slint App Window
     let app = AppWindow::new()?;
 
+    const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
+
     // 3. Populate initial UI values from configuration
     {
         let cfg = config.lock().unwrap();
@@ -61,6 +65,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         app.set_scheduler_enabled(cfg.scheduler.enabled);
         app.set_scheduler_interval(cfg.scheduler.interval_mins as i32);
         app.set_run_on_startup(cfg.scheduler.run_on_startup);
+        app.set_update_status(format!("v{}", CARGO_PKG_VERSION).into());
         
         let easing_str = match cfg.transition_default.easing {
             EasingType::Linear => "linear",
@@ -130,6 +135,87 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     app.on_trigger_next(move || {
         tokio::spawn(async move {
             let _ = send_ipc_request(IpcRequest::NextWallpaper).await;
+        });
+    });
+
+    let ui_weak = app.as_weak();
+    app.on_check_for_updates(move || {
+        let ui_weak = ui_weak.clone();
+        tokio::spawn(async move {
+            let _ = ui_weak.upgrade_in_event_loop(|ui| {
+                ui.set_update_status("Checking...".into());
+            });
+            
+            let check_res = tokio::task::spawn_blocking(move || {
+                updater::check_for_updates(CARGO_PKG_VERSION)
+            }).await;
+
+            match check_res {
+                Ok(Ok(Some(info))) => {
+                    let _ = ui_weak.upgrade_in_event_loop(move |ui| {
+                        ui.set_update_status(format!("New version: {}", info.version).into());
+                        ui.set_update_available(true);
+                        ui.set_latest_version_url(info.download_url.into());
+                    });
+                }
+                Ok(Ok(None)) => {
+                    let _ = ui_weak.upgrade_in_event_loop(move |ui| {
+                        ui.set_update_status(format!("v{} (Up to date)", CARGO_PKG_VERSION).into());
+                        ui.set_update_available(false);
+                    });
+                }
+                Ok(Err(e)) => {
+                    let _ = ui_weak.upgrade_in_event_loop(move |ui| {
+                        ui.set_update_status(format!("Error: {e}").into());
+                        ui.set_update_available(false);
+                    });
+                }
+                Err(_) => {
+                    let _ = ui_weak.upgrade_in_event_loop(|ui| {
+                        ui.set_update_status("Error checking updates".into());
+                        ui.set_update_available(false);
+                    });
+                }
+            }
+        });
+    });
+
+    let ui_weak = app.as_weak();
+    app.on_apply_update(move || {
+        let ui_weak = ui_weak.clone();
+        tokio::spawn(async move {
+            let url = ui_weak.upgrade().map(|ui| ui.get_latest_version_url().to_string()).unwrap_or_default();
+            if url.is_empty() { return; }
+
+            let _ = ui_weak.upgrade_in_event_loop(|ui| {
+                ui.set_update_status("Downloading...".into());
+            });
+
+            let download_res = tokio::task::spawn_blocking(move || {
+                updater::download_and_run_installer(&url)
+            }).await;
+
+            match download_res {
+                Ok(Ok(())) => {
+                    let _ = ui_weak.upgrade_in_event_loop(|ui| {
+                        ui.set_update_status("Installing...".into());
+                    });
+                    let _ = std::process::Command::new("taskkill")
+                        .args(&["/F", "/IM", "lw-service.exe"])
+                        .status();
+                    std::process::exit(0);
+                }
+                Ok(Err(e)) => {
+                    let _ = ui_weak.upgrade_in_event_loop(move |ui| {
+                        ui.set_update_status(format!("Download failed: {e}").into());
+                    });
+                }
+                Err(_) => {
+                    let _ = ui_weak.upgrade_in_event_loop(|ui| {
+                        ui.set_update_status("Download failed".into());
+                    });
+                }
+            }
         });
     });
 
