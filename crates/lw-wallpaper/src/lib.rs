@@ -2,7 +2,7 @@ use lw_core::error::LwError;
 use lw_core::traits::{MonitorRect, WallpaperManager};
 use std::path::{Path, PathBuf};
 use windows::core::PCWSTR;
-use windows::Win32::System::Com::{CoCreateInstance, CoTaskMemFree, CLSCTX_ALL};
+use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CoTaskMemFree, CLSCTX_ALL, COINIT_MULTITHREADED};
 use windows::Win32::UI::Shell::{DesktopWallpaper, IDesktopWallpaper};
 
 pub mod monitor;
@@ -19,6 +19,9 @@ unsafe impl Sync for DesktopWallpaperManager {}
 impl DesktopWallpaperManager {
     /// Creates a new instance of `DesktopWallpaperManager` binding to Windows COM `IDesktopWallpaper`.
     pub fn new() -> Result<Self, LwError> {
+        unsafe {
+            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+        }
         let wallpaper: IDesktopWallpaper = unsafe {
             CoCreateInstance(&DesktopWallpaper, None, CLSCTX_ALL).map_err(|e| {
                 LwError::Wallpaper(format!("Failed to create IDesktopWallpaper instance: {e}"))
