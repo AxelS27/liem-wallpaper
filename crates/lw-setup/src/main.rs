@@ -1,6 +1,7 @@
 #![windows_subsystem = "windows"]
 
 use std::fs;
+use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use windows::core::PCWSTR;
 use windows::Win32::System::Registry::{
@@ -338,6 +339,11 @@ fn install() -> std::io::Result<()> {
     let ps_msg = "Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show('Liem Wallpaper has been installed successfully! The \"lw\" command is now available in your terminal.', 'Installation Complete')";
     let _ =
         std::process::Command::new("powershell").args(&["-NoProfile", "-Command", ps_msg]).status();
+
+    // Start Daemon background service silently after installation finishes
+    let _ = std::process::Command::new(install_dir.join("lw-service.exe"))
+        .creation_flags(0x08000000) // CREATE_NO_WINDOW
+        .spawn();
 
     // Start GUI after installation finishes
     let _ = std::process::Command::new(gui_path).spawn();

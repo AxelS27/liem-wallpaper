@@ -5,6 +5,7 @@ slint::include_modules!();
 pub mod updater;
 
 use lw_core::{Config, EasingType, IpcRequest, IpcResponse};
+use std::os::windows::process::CommandExt;
 use slint::ComponentHandle;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -99,6 +100,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         ui.set_daemon_status("Disconnected".into());
                         ui.set_current_wallpaper("None".into());
                     });
+
+                    // Try to auto-start daemon in the background
+                    if let Ok(exe_path) = std::env::current_exe() {
+                        if let Some(exe_dir) = exe_path.parent() {
+                            let daemon_path = exe_dir.join("lw-service.exe");
+                            if daemon_path.exists() {
+                                let _ = std::process::Command::new(daemon_path)
+                                    .creation_flags(0x08000000) // CREATE_NO_WINDOW
+                                    .spawn();
+                            }
+                        }
+                    }
                 }
             }
             sleep(Duration::from_secs(2)).await;
