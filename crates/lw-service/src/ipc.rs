@@ -151,7 +151,7 @@ where
                     }
                 }
             }
-            IpcRequest::NextWallpaper | IpcRequest::PrevWallpaper => {
+            IpcRequest::NextWallpaper { transition } | IpcRequest::PrevWallpaper { transition } => {
                 let (dir, shuffle) = {
                     let cfg = config.lock().unwrap();
                     (cfg.wallpaper_dir.clone(), cfg.shuffle)
@@ -166,7 +166,9 @@ where
                     if let Some(next_wp) =
                         crate::scheduler::select_next_wallpaper(&files, &current, shuffle)
                     {
-                        let params = {
+                        let params = if let Some(t) = transition {
+                            t
+                        } else {
                             let cfg = config.lock().unwrap();
                             lw_core::ipc::TransitionParams {
                                 effect_type: cfg.transition_default.effect_type.clone(),

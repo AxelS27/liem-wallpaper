@@ -65,7 +65,7 @@ unsafe extern "system" fn window_proc(
                                 .open(r"\\.\pipe\liem-wallpaper");
                             if let Ok(mut pipe) = client {
                                 use tokio::io::AsyncWriteExt;
-                                let req = lw_core::ipc::IpcRequest::NextWallpaper;
+                                let req = lw_core::ipc::IpcRequest::NextWallpaper { transition: None };
                                 if let Ok(bytes) = serde_json::to_vec(&req) {
                                     let mut payload = bytes;
                                     payload.push(b'\n');

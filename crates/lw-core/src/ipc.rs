@@ -6,8 +6,8 @@ use std::path::PathBuf;
 #[serde(tag = "type")]
 pub enum IpcRequest {
     SetWallpaper { path: PathBuf, transition: Option<TransitionParams> },
-    NextWallpaper,
-    PrevWallpaper,
+    NextWallpaper { transition: Option<TransitionParams> },
+    PrevWallpaper { transition: Option<TransitionParams> },
     UpdateConfig { config: Config },
     GetStatus,
 }

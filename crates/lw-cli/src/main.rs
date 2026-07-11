@@ -15,16 +15,16 @@ const PIPE_NAME: &str = r"\\.\pipe\liem-wallpaper";
     long_about = "Liem Wallpaper CLI\n\n\
                   COMMON USAGE:\n  \
                   lw set <path> [-t <transition>] [-d <duration>] [-s <style>] [-g <dir>]\n  \
+                  lw next [-t <transition>] [-d <duration>] [-s <style>] [-g <dir>]\n  \
+                  lw prev [-t <transition>] [-d <duration>] [-s <style>] [-g <dir>]\n  \
                   lw status\n  \
-                  lw next\n  \
-                  lw prev\n  \
                   lw shaders\n  \
                   lw update\n\n\
-                  TRANSITION FLAGS (for 'set' command):\n  \
-                  -t, --transition <type>  Transition effect name (e.g. fade, pixelate, glitch, radial-in, slide-left, zoom-in) [default: fade]\n  \
-                  -d, --duration <ms>      Duration of transition in milliseconds [default: 1000]\n  \
-                  -s, --style <curve>      Easing style (linear, sine, quad, cubic, quart, quint, expo, circ, back, bounce, elastic) [default: quad]\n  \
-                  -g, --dir <direction>    Easing direction (in, out, inout) [default: inout]"
+                  TRANSITION FLAGS (for 'set', 'next', and 'prev' commands):\n  \
+                  -t, --transition <type>  Transition effect name (e.g. fade, pixelate, glitch, radial-in, slide-left, zoom-in)\n  \
+                  -d, --duration <ms>      Duration of transition in milliseconds\n  \
+                  -s, --style <curve>      Easing style (linear, sine, quad, cubic, quart, quint, expo, circ, back, bounce, elastic)\n  \
+                  -g, --dir <direction>    Easing direction (in, out, inout)"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -59,10 +59,42 @@ enum Commands {
     },
 
     /// Trigger the next wallpaper in rotation
-    Next,
+    Next {
+        /// Transition effect (e.g. fade)
+        #[arg(short, long)]
+        transition: Option<String>,
+
+        /// Duration of transition in milliseconds
+        #[arg(short, long)]
+        duration: Option<u32>,
+
+        /// Easing style (linear, sine, quad, cubic, quart, quint, expo, circ, back, bounce, elastic)
+        #[arg(short, long)]
+        style: Option<String>,
+
+        /// Easing direction (in, out, inout)
+        #[arg(short = 'g', long = "dir")]
+        direction: Option<String>,
+    },
 
     /// Trigger the previous wallpaper in rotation
-    Prev,
+    Prev {
+        /// Transition effect (e.g. fade)
+        #[arg(short, long)]
+        transition: Option<String>,
+
+        /// Duration of transition in milliseconds
+        #[arg(short, long)]
+        duration: Option<u32>,
+
+        /// Easing style (linear, sine, quad, cubic, quart, quint, expo, circ, back, bounce, elastic)
+        #[arg(short, long)]
+        style: Option<String>,
+
+        /// Easing direction (in, out, inout)
+        #[arg(short = 'g', long = "dir")]
+        direction: Option<String>,
+    },
 
     /// List all available transition shaders
     Shaders,
@@ -141,14 +173,36 @@ async fn main() {
                 std::process::exit(1);
             }
         }
-        Commands::Next => {
-            if let Err(e) = send_request_and_print(IpcRequest::NextWallpaper).await {
+        Commands::Next { transition, duration, style, direction } => {
+            let t_params = if transition.is_none() && duration.is_none() && style.is_none() && direction.is_none() {
+                None
+            } else {
+                let (parsed_style, parsed_dir) = parse_style_and_dir(style.as_deref(), direction.as_deref());
+                Some(lw_core::ipc::TransitionParams {
+                    effect_type: transition.unwrap_or_else(|| "fade".to_string()),
+                    duration_ms: duration.unwrap_or(1000),
+                    easing_style: parsed_style,
+                    easing_direction: parsed_dir,
+                })
+            };
+            if let Err(e) = send_request_and_print(IpcRequest::NextWallpaper { transition: t_params }).await {
                 eprintln!("CLI Error: {e}");
                 std::process::exit(1);
             }
         }
-        Commands::Prev => {
-            if let Err(e) = send_request_and_print(IpcRequest::PrevWallpaper).await {
+        Commands::Prev { transition, duration, style, direction } => {
+            let t_params = if transition.is_none() && duration.is_none() && style.is_none() && direction.is_none() {
+                None
+            } else {
+                let (parsed_style, parsed_dir) = parse_style_and_dir(style.as_deref(), direction.as_deref());
+                Some(lw_core::ipc::TransitionParams {
+                    effect_type: transition.unwrap_or_else(|| "fade".to_string()),
+                    duration_ms: duration.unwrap_or(1000),
+                    easing_style: parsed_style,
+                    easing_direction: parsed_dir,
+                })
+            };
+            if let Err(e) = send_request_and_print(IpcRequest::PrevWallpaper { transition: t_params }).await {
                 eprintln!("CLI Error: {e}");
                 std::process::exit(1);
             }
