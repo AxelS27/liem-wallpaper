@@ -27,13 +27,26 @@ lw set "C:\path\to\wallpaper.jpg" -t pixelate -d 2500
 lw set "C:\path\to\wallpaper.jpg" -t slide-left -d 1500 -s quint -g out
 ```
 
-### 3. Trigger Next Wallpaper
-If you have configured a wallpapers folder, trigger a transition to the next random wallpaper in the queue:
+### 3. Navigation & Shaders List
+Trigger the next or previous wallpaper in rotation, or print all available transition effects:
 ```powershell
+# Next wallpaper in queue
 lw next
+
+# Previous wallpaper in queue
+lw prev
+
+# List all available transition shaders
+lw shaders
 ```
 
-### 4. Control the Scheduler
+### 4. Check & Install Updates
+Check for updates and perform silent installations from GitHub Releases:
+```powershell
+lw update
+```
+
+### 5. Control the Scheduler
 Enable or disable automatic wallpaper changes:
 ```powershell
 # Start automated rotation

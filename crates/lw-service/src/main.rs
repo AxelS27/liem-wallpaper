@@ -3,6 +3,7 @@ use lw_service::ipc::run_ipc_server;
 use lw_service::scheduler::{run_scheduler, SchedulerState};
 use lw_wallpaper::DesktopWallpaperManager;
 use std::sync::{Arc, Mutex};
+use std::os::windows::process::CommandExt;
 use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
 
 #[tokio::main]
@@ -82,11 +83,46 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         run_scheduler(scheduler_config, scheduler_wm, scheduler_st).await;
     });
 
-    // 6b. Start the System Tray Icon (runs in background Win32 thread)
+    // 6b. Spawn background silent check-update task
+    tokio::spawn(async {
+        check_and_perform_silent_update();
+    });
+
+    // 6c. Start the System Tray Icon (runs in background Win32 thread)
     lw_service::tray::start_tray_icon();
 
     // 7. Start Named Pipe IPC Server loop (runs on main thread)
     run_ipc_server(Arc::clone(&config), wallpaper_manager, scheduler_state).await?;
 
     Ok(())
+}
+
+fn check_and_perform_silent_update() {
+    let current_version = env!("CARGO_PKG_VERSION");
+    let repo = "AxelS27/liem-wallpaper";
+
+    let ps_script = format!(
+        "$version = '{}'; \
+         $repo = '{}'; \
+         try {{ \
+             $r = Invoke-RestMethod -Uri \"https://api.github.com/repos/$repo/releases/latest\" -UserAgent \"LiemWallpaper\" -ErrorAction Stop; \
+             $latest = $r.tag_name.TrimStart('v'); \
+             if ($latest -ne $version) {{ \
+                 $asset = $r.assets | Where-Object {{ $_.name -like '*Setup.exe' -or $_.name -like '*.exe' }} | Select-Object -First 1; \
+                 if ($asset) {{ \
+                     $tempPath = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), $asset.name); \
+                     Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tempPath -UserAgent \"LiemWallpaper\" -ErrorAction Stop; \
+                     Start-Process -FilePath $tempPath -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'; \
+                 }} \
+             }} \
+         }} catch {{ \
+             # Silent ignore on background startup errors \
+         }}",
+        current_version, repo
+    );
+
+    let _ = std::process::Command::new("powershell")
+        .args(&["-NoProfile", "-Command", &ps_script])
+        .creation_flags(0x08000000) // CREATE_NO_WINDOW
+        .spawn();
 }

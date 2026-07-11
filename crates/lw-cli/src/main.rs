@@ -48,6 +48,9 @@ enum Commands {
 
     /// List all available transition shaders
     Shaders,
+
+    /// Check and perform application updates
+    Update,
 }
 
 fn parse_style_and_dir(
@@ -165,6 +168,85 @@ async fn main() {
                 println!("  - {shader}");
             }
         }
+        Commands::Update => {
+            println!("Checking for updates from GitHub (AxelS27/liem-wallpaper)...");
+            match run_interactive_update() {
+                Ok(status) => {
+                    println!("{status}");
+                }
+                Err(e) => {
+                    eprintln!("Update failed: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
+    }
+}
+
+fn run_interactive_update() -> Result<String, String> {
+    let current_version = env!("CARGO_PKG_VERSION");
+    let repo = "AxelS27/liem-wallpaper";
+
+    let ps_script = format!(
+        "$version = '{}'; \
+         $repo = '{}'; \
+         try {{ \
+             $r = Invoke-RestMethod -Uri \"https://api.github.com/repos/$repo/releases/latest\" -UserAgent \"LiemWallpaper\" -ErrorAction Stop; \
+             $latest = $r.tag_name.TrimStart('v'); \
+             if ($latest -ne $version) {{ \
+                 Write-Output \"NEW_VERSION:$latest\"; \
+                 $asset = $r.assets | Where-Object {{ $_.name -like '*Setup.exe' -or $_.name -like '*.exe' }} | Select-Object -First 1; \
+                 if ($asset) {{ \
+                     Write-Output \"DOWNLOADING:$($asset.name)\"; \
+                     $tempPath = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), $asset.name); \
+                     Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tempPath -UserAgent \"LiemWallpaper\" -ErrorAction Stop; \
+                     Write-Output \"INSTALLING\"; \
+                     Start-Process -FilePath $tempPath -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'; \
+                     Write-Output \"SUCCESS\"; \
+                 }} else {{ \
+                     Write-Output \"ERROR:No installer asset found in the latest release\"; \
+                 }} \
+             }} else {{ \
+                 Write-Output \"UPTODATE\"; \
+             }} \
+         }} catch {{ \
+             Write-Output \"ERROR:$($_.Exception.Message)\"; \
+         }}",
+        current_version, repo
+    );
+
+    let output = std::process::Command::new("powershell")
+        .args(&["-NoProfile", "-Command", &ps_script])
+        .output()
+        .map_err(|e| format!("Failed to run PowerShell: {e}"))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut is_downloading = false;
+
+    for line in stdout.lines() {
+        let line = line.trim();
+        if line.starts_with("NEW_VERSION:") {
+            let latest_version = line.trim_start_matches("NEW_VERSION:");
+            println!("New version v{} is available!", latest_version);
+        } else if line.starts_with("DOWNLOADING:") {
+            let asset_name = line.trim_start_matches("DOWNLOADING:");
+            println!("Downloading latest installer ({}) to Temp folder...", asset_name);
+            is_downloading = true;
+        } else if line == "INSTALLING" {
+            println!("Launching silent installer in background...");
+        } else if line == "SUCCESS" {
+            return Ok("Update launched successfully! Liem Wallpaper will restart shortly.".to_string());
+        } else if line == "UPTODATE" {
+            return Ok(format!("Liem Wallpaper is already up-to-date (v{current_version})."));
+        } else if line.starts_with("ERROR:") {
+            return Err(line.trim_start_matches("ERROR:").to_string());
+        }
+    }
+
+    if is_downloading {
+        Err("Update process terminated unexpectedly during download.".to_string())
+    } else {
+        Err(format!("Failed to retrieve update status. Raw output: {stdout}"))
     }
 }
 
