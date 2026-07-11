@@ -4,17 +4,6 @@ Liem Wallpaper allows you to write, add, and use your own GPU-accelerated transi
 
 ---
 
-## Where Shaders Are Loaded From
-
-When a transition is requested, Liem Wallpaper compiles and runs the corresponding `.hlsl` shader file. The service searches for shaders in the **`shaders/` directory next to `lw-service.exe` in your installation folder**.
-
-To add a new transition, simply drop a `.hlsl` file (e.g. `wave.hlsl`) into this folder. You can immediately call it using the CLI:
-```powershell
-lw set "C:\wallpaper.jpg" --transition wave
-```
-
----
-
 ## HLSL Environment & Input Variables
 
 Your shader runs as a **D3D11 Pixel Shader (Target `ps_5_0`)**. It receives the current wallpaper texture, the new wallpaper texture, a bilinear sampler, and a constant buffer containing variables updated every frame.
