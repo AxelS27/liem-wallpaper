@@ -7,7 +7,25 @@ use tokio::net::windows::named_pipe::ClientOptions;
 const PIPE_NAME: &str = r"\\.\pipe\liem-wallpaper";
 
 #[derive(Parser)]
-#[command(name = "lw-cli", author, version, about = "Liem Wallpaper CLI tool", long_about = None)]
+#[command(
+    name = "lw",
+    author,
+    version,
+    about = "Liem Wallpaper - A lightweight GPU-accelerated wallpaper manager",
+    long_about = "Liem Wallpaper CLI\n\n\
+                  COMMON USAGE:\n  \
+                  lw set <path> [-t <transition>] [-d <duration>] [-s <style>] [-g <dir>]\n  \
+                  lw status\n  \
+                  lw next\n  \
+                  lw prev\n  \
+                  lw shaders\n  \
+                  lw update\n\n\
+                  TRANSITION FLAGS (for 'set' command):\n  \
+                  -t, --transition <type>  Transition effect name (e.g. fade, pixelate, glitch, radial-in, slide-left, zoom-in) [default: fade]\n  \
+                  -d, --duration <ms>      Duration of transition in milliseconds [default: 1000]\n  \
+                  -s, --style <curve>      Easing style (linear, sine, quad, cubic, quart, quint, expo, circ, back, bounce, elastic) [default: quad]\n  \
+                  -g, --dir <direction>    Easing direction (in, out, inout) [default: inout]"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
