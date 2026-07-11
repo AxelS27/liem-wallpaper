@@ -42,6 +42,7 @@ pub struct TransitionEngine {
     vertex_shader: ID3D11VertexShader,
     pub default_easing_style: EasingStyle,
     pub default_easing_direction: EasingDirection,
+    pub target_fps: u32,
     shader_dir: PathBuf,
 }
 
@@ -209,6 +210,7 @@ impl TransitionEngine {
             vertex_shader,
             default_easing_style: EasingStyle::Quad,
             default_easing_direction: EasingDirection::InOut,
+            target_fps: 60,
             shader_dir,
         })
     }
@@ -287,6 +289,7 @@ impl TransitionEngine {
             vertex_shader,
             default_easing_style: EasingStyle::Quad,
             default_easing_direction: EasingDirection::InOut,
+            target_fps: 60,
             shader_dir,
         })
     }
@@ -400,7 +403,8 @@ impl TransitionEngine {
         let start_time = std::time::Instant::now();
         let duration = std::time::Duration::from_millis(u64::from(duration_ms));
         let mut frame_count = 0;
-        let target_frame_time = std::time::Duration::from_nanos(16_666_667); // 60 FPS
+        let fps = if self.target_fps == 0 { 60 } else { self.target_fps };
+        let target_frame_time = std::time::Duration::from_nanos(1_000_000_000 / u64::from(fps));
         let mut on_first_frame = Some(on_first_frame);
 
         tracing::info!("Entering GPU transition loop. Duration: {:?}.", duration);

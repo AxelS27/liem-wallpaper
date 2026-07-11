@@ -45,9 +45,9 @@ enum Commands {
         #[arg(short, long, default_value = "fade")]
         transition: String,
 
-        /// Duration of transition in milliseconds
-        #[arg(short, long, default_value_t = 1000)]
-        duration: u32,
+        /// Duration of transition in seconds (e.g. 1.5)
+        #[arg(short, long, default_value_t = 1.0)]
+        duration: f32,
 
         /// Easing style (linear, sine, quad, cubic, quart, quint, expo, circ, back, bounce, elastic)
         #[arg(short, long)]
@@ -56,6 +56,10 @@ enum Commands {
         /// Easing direction (in, out, inout)
         #[arg(short = 'g', long = "dir")]
         direction: Option<String>,
+
+        /// Target frame rate (FPS) for transition rendering (e.g. 30, 60)
+        #[arg(short, long)]
+        fps: Option<u32>,
     },
 
     /// Trigger the next wallpaper in rotation
@@ -64,9 +68,9 @@ enum Commands {
         #[arg(short, long)]
         transition: Option<String>,
 
-        /// Duration of transition in milliseconds
+        /// Duration of transition in seconds (e.g. 1.5)
         #[arg(short, long)]
-        duration: Option<u32>,
+        duration: Option<f32>,
 
         /// Easing style (linear, sine, quad, cubic, quart, quint, expo, circ, back, bounce, elastic)
         #[arg(short, long)]
@@ -75,6 +79,10 @@ enum Commands {
         /// Easing direction (in, out, inout)
         #[arg(short = 'g', long = "dir")]
         direction: Option<String>,
+
+        /// Target frame rate (FPS) for transition rendering (e.g. 30, 60)
+        #[arg(short, long)]
+        fps: Option<u32>,
     },
 
     /// Trigger the previous wallpaper in rotation
@@ -83,9 +91,9 @@ enum Commands {
         #[arg(short, long)]
         transition: Option<String>,
 
-        /// Duration of transition in milliseconds
+        /// Duration of transition in seconds (e.g. 1.5)
         #[arg(short, long)]
-        duration: Option<u32>,
+        duration: Option<f32>,
 
         /// Easing style (linear, sine, quad, cubic, quart, quint, expo, circ, back, bounce, elastic)
         #[arg(short, long)]
@@ -94,6 +102,10 @@ enum Commands {
         /// Easing direction (in, out, inout)
         #[arg(short = 'g', long = "dir")]
         direction: Option<String>,
+
+        /// Target frame rate (FPS) for transition rendering (e.g. 30, 60)
+        #[arg(short, long)]
+        fps: Option<u32>,
     },
 
     /// List all available transition shaders
@@ -150,7 +162,7 @@ async fn main() {
                 std::process::exit(1);
             }
         }
-        Commands::Set { path, transition, duration, style, direction } => {
+        Commands::Set { path, transition, duration, style, direction, fps } => {
             let abs_path = if path.is_absolute() {
                 path
             } else {
@@ -162,9 +174,10 @@ async fn main() {
                 path: abs_path,
                 transition: Some(lw_core::ipc::TransitionParams {
                     effect_type: transition,
-                    duration_ms: duration,
+                    duration_secs: duration,
                     easing_style: parsed_style,
                     easing_direction: parsed_dir,
+                    target_fps: fps,
                 }),
             };
 
@@ -173,16 +186,17 @@ async fn main() {
                 std::process::exit(1);
             }
         }
-        Commands::Next { transition, duration, style, direction } => {
-            let t_params = if transition.is_none() && duration.is_none() && style.is_none() && direction.is_none() {
+        Commands::Next { transition, duration, style, direction, fps } => {
+            let t_params = if transition.is_none() && duration.is_none() && style.is_none() && direction.is_none() && fps.is_none() {
                 None
             } else {
                 let (parsed_style, parsed_dir) = parse_style_and_dir(style.as_deref(), direction.as_deref());
                 Some(lw_core::ipc::TransitionParams {
                     effect_type: transition.unwrap_or_else(|| "fade".to_string()),
-                    duration_ms: duration.unwrap_or(1000),
+                    duration_secs: duration.unwrap_or(1.0),
                     easing_style: parsed_style,
                     easing_direction: parsed_dir,
+                    target_fps: fps,
                 })
             };
             if let Err(e) = send_request_and_print(IpcRequest::NextWallpaper { transition: t_params }).await {
@@ -190,16 +204,17 @@ async fn main() {
                 std::process::exit(1);
             }
         }
-        Commands::Prev { transition, duration, style, direction } => {
-            let t_params = if transition.is_none() && duration.is_none() && style.is_none() && direction.is_none() {
+        Commands::Prev { transition, duration, style, direction, fps } => {
+            let t_params = if transition.is_none() && duration.is_none() && style.is_none() && direction.is_none() && fps.is_none() {
                 None
             } else {
                 let (parsed_style, parsed_dir) = parse_style_and_dir(style.as_deref(), direction.as_deref());
                 Some(lw_core::ipc::TransitionParams {
                     effect_type: transition.unwrap_or_else(|| "fade".to_string()),
-                    duration_ms: duration.unwrap_or(1000),
+                    duration_secs: duration.unwrap_or(1.0),
                     easing_style: parsed_style,
                     easing_direction: parsed_dir,
+                    target_fps: fps,
                 })
             };
             if let Err(e) = send_request_and_print(IpcRequest::PrevWallpaper { transition: t_params }).await {

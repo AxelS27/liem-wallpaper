@@ -99,8 +99,10 @@ run_on_startup = true
 [transition_default]
 # The default transition effect name
 effect_type = "fade"
-# The default duration in milliseconds
-duration_ms = 1000
+# The default duration in seconds (e.g. 1.0, 1.5)
+duration_secs = 1.0
+# The target frame rate (FPS) for rendering transitions (e.g. 60)
+target_fps = 60
 # The default easing curves
 easing_style = "Quad"
 easing_direction = "InOut"

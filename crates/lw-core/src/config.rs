@@ -2,7 +2,7 @@ use crate::error::LwError;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Config {
     pub wallpaper_dir: PathBuf,
     pub shuffle: bool,
@@ -41,14 +41,15 @@ fn default_easing_direction() -> EasingDirection {
     EasingDirection::InOut
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TransitionConfig {
     pub effect_type: String,
-    pub duration_ms: u32,
+    pub duration_secs: f32,
     #[serde(default = "default_easing_style")]
     pub easing_style: EasingStyle,
     #[serde(default = "default_easing_direction")]
     pub easing_direction: EasingDirection,
+    pub target_fps: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -85,9 +86,10 @@ impl Default for TransitionConfig {
     fn default() -> Self {
         Self {
             effect_type: "fade".to_string(),
-            duration_ms: 1000,
+            duration_secs: 1.0,
             easing_style: EasingStyle::Quad,
             easing_direction: EasingDirection::InOut,
+            target_fps: Some(60),
         }
     }
 }
@@ -134,11 +136,19 @@ impl Config {
 
 impl TransitionConfig {
     pub fn validate(&self) -> Result<(), LwError> {
-        if self.duration_ms < 100 || self.duration_ms > 10000 {
+        if self.duration_secs < 0.1 || self.duration_secs > 10.0 {
             return Err(LwError::Config(format!(
-                "duration_ms must be between 100 and 10000, got {}",
-                self.duration_ms
+                "duration_secs must be between 0.1 and 10.0, got {}",
+                self.duration_secs
             )));
+        }
+        if let Some(fps) = self.target_fps {
+            if fps == 0 || fps > 360 {
+                return Err(LwError::Config(format!(
+                    "target_fps must be between 1 and 360, got {}",
+                    fps
+                )));
+            }
         }
         Ok(())
     }

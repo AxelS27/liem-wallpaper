@@ -8,7 +8,7 @@ fn test_default_config() {
     let config = Config::default();
     assert!(!config.shuffle);
     assert_eq!(config.transition_default.effect_type, "fade");
-    assert_eq!(config.transition_default.duration_ms, 1000);
+    assert_eq!(config.transition_default.duration_secs, 1.0);
     assert_eq!(config.transition_default.easing_style, EasingStyle::Quad);
     assert_eq!(config.transition_default.easing_direction, EasingDirection::InOut);
     assert!(config.scheduler.enabled);
@@ -22,19 +22,19 @@ fn test_default_config() {
 fn test_invalid_transition_duration() {
     let mut config = Config::default();
 
-    // Too short (minimum is 100ms)
-    config.transition_default.duration_ms = 99;
+    // Too short (minimum is 0.1s)
+    config.transition_default.duration_secs = 0.09;
     assert!(config.validate().is_err());
 
-    // Too long (maximum is 10000ms)
-    config.transition_default.duration_ms = 10001;
+    // Too long (maximum is 10.0s)
+    config.transition_default.duration_secs = 10.01;
     assert!(config.validate().is_err());
 
     // Valid boundary values
-    config.transition_default.duration_ms = 100;
+    config.transition_default.duration_secs = 0.1;
     assert!(config.validate().is_ok());
 
-    config.transition_default.duration_ms = 10000;
+    config.transition_default.duration_secs = 10.0;
     assert!(config.validate().is_ok());
 }
 
@@ -71,7 +71,7 @@ fn test_toml_serialization_deserialization() {
     config.wallpaper_dir = std::env::temp_dir();
     config.shuffle = true;
     config.transition_default.effect_type = "slide-left".to_string();
-    config.transition_default.duration_ms = 2000;
+    config.transition_default.duration_secs = 2.0;
     config.transition_default.easing_style = EasingStyle::Linear;
     config.transition_default.easing_direction = EasingDirection::In;
     config.scheduler.enabled = false;
@@ -89,7 +89,7 @@ fn test_toml_serialization_deserialization() {
 fn test_save_and_load_file() {
     let mut config = Config::default();
     config.wallpaper_dir = std::env::temp_dir();
-    config.transition_default.duration_ms = 1500;
+    config.transition_default.duration_secs = 1.5;
 
     let temp_file_path = std::env::temp_dir().join("liem_wallpaper_test_config.toml");
 

@@ -172,9 +172,10 @@ where
                             let cfg = config.lock().unwrap();
                             lw_core::ipc::TransitionParams {
                                 effect_type: cfg.transition_default.effect_type.clone(),
-                                duration_ms: cfg.transition_default.duration_ms,
+                                duration_secs: cfg.transition_default.duration_secs,
                                 easing_style: cfg.transition_default.easing_style,
                                 easing_direction: cfg.transition_default.easing_direction,
+                                target_fps: cfg.transition_default.target_fps,
                             }
                         };
                         match run_transition_and_set(&next_wp, &params, wallpaper_manager.as_ref())
@@ -307,15 +308,19 @@ where
 
     engine.default_easing_style = params.easing_style;
     engine.default_easing_direction = params.easing_direction;
+    if let Some(fps) = params.target_fps {
+        engine.target_fps = fps;
+    }
 
     // 5. Render transition animation.
     //    If we are NOT reusing existing windows (meaning new ones were created), we trigger
     //    destroy_active_overlays immediately after the first frame is presented to prevent start-of-transition flicker.
     //    If we ARE reusing, there is nothing to destroy.
+    let duration_ms = (params.duration_secs * 1000.0) as u32;
     engine.render_transition_with_callback(
         &from_path,
         target_path,
-        params.duration_ms,
+        duration_ms,
         &effect_type,
         || {
             if !was_reused {
