@@ -69,7 +69,7 @@ Choose from the built-in GPU-accelerated HLSL transitions, or specify the name o
 
 ## Configuration (`config.toml`)
 
-The application stores its configuration file at `config.toml` in your installation directory (next to `lw-service.exe`). You can edit it manually to set default values:
+The application stores its configuration file at `config.toml` in your installation directory. You can edit it manually to set default values:
 
 ```toml
 # The directory containing your desktop wallpapers
