@@ -193,6 +193,13 @@ where
                 let mut cfg = config.lock().unwrap();
                 *cfg = new_config;
                 let _ = crate::startup::set_startup_run(cfg.scheduler.run_on_startup);
+                
+                // Save config.toml next to the executable
+                if let Ok(exe_path) = std::env::current_exe() {
+                    if let Some(exe_dir) = exe_path.parent() {
+                        let _ = cfg.save_to_file(&exe_dir.join("config.toml"));
+                    }
+                }
                 IpcResponse::Success
             }
         };

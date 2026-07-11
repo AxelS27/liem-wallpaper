@@ -40,24 +40,14 @@ enum Commands {
         direction: Option<String>,
     },
 
-    /// Test transitions between blue.jpg and red.jpg
-    Test {
-        /// Transition effect (e.g. fade, slide-left)
-        #[arg(short, long, default_value = "fade")]
-        transition: String,
+    /// Trigger the next wallpaper in rotation
+    Next,
 
-        /// Duration of transition in milliseconds
-        #[arg(short, long, default_value_t = 1000)]
-        duration: u32,
+    /// Trigger the previous wallpaper in rotation
+    Prev,
 
-        /// Easing style (linear, sine, quad, cubic, quart, quint, expo, circ, back, bounce, elastic)
-        #[arg(short, long)]
-        style: Option<String>,
-
-        /// Easing direction (in, out, inout)
-        #[arg(short = 'g', long = "dir")]
-        direction: Option<String>,
-    },
+    /// List all available transition shaders
+    Shaders,
 }
 
 fn parse_style_and_dir(
@@ -130,41 +120,49 @@ async fn main() {
                 std::process::exit(1);
             }
         }
-        Commands::Test { transition, duration, style, direction } => {
-            let status_res = send_request(IpcRequest::GetStatus).await;
-            let current_wp = match status_res {
-                Ok(IpcResponse::StatusResponse { current_wallpaper, .. }) => current_wallpaper,
-                _ => None,
-            };
-
-            let target_path = if let Some(ref path) = current_wp {
-                let path_str = path.to_string_lossy().to_lowercase();
-                if path_str.contains("blue.jpg") {
-                    PathBuf::from(r"D:\Downloads\red.jpg")
-                } else {
-                    PathBuf::from(r"D:\Downloads\blue.jpg")
-                }
-            } else {
-                PathBuf::from(r"D:\Downloads\blue.jpg")
-            };
-
-            println!("Current wallpaper: {:?}", current_wp);
-            println!("Toggling test wallpaper to: {:?}", target_path);
-
-            let (parsed_style, parsed_dir) = parse_style_and_dir(style.as_deref(), direction.as_deref());
-            let request = IpcRequest::SetWallpaper {
-                path: target_path,
-                transition: Some(lw_core::ipc::TransitionParams {
-                    effect_type: transition,
-                    duration_ms: duration,
-                    easing_style: parsed_style,
-                    easing_direction: parsed_dir,
-                }),
-            };
-
-            if let Err(e) = send_request_and_print(request).await {
+        Commands::Next => {
+            if let Err(e) = send_request_and_print(IpcRequest::NextWallpaper).await {
                 eprintln!("CLI Error: {e}");
                 std::process::exit(1);
+            }
+        }
+        Commands::Prev => {
+            if let Err(e) = send_request_and_print(IpcRequest::PrevWallpaper).await {
+                eprintln!("CLI Error: {e}");
+                std::process::exit(1);
+            }
+        }
+        Commands::Shaders => {
+            let mut shaders = vec![
+                "fade".to_string(), "zoom-in".to_string(), "zoom-out".to_string(),
+                "pixelate".to_string(), "glitch".to_string(), "radial-in".to_string(),
+                "radial-out".to_string(), "slide-left".to_string(), "slide-right".to_string(),
+                "slide-up".to_string(), "slide-down".to_string()
+            ];
+
+            if let Ok(exe_path) = std::env::current_exe() {
+                if let Some(exe_dir) = exe_path.parent() {
+                    let local_shaders = exe_dir.join("shaders");
+                    if let Ok(entries) = std::fs::read_dir(local_shaders) {
+                        for entry in entries.flatten() {
+                            let path = entry.path();
+                            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("hlsl") {
+                                if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                                    let stem_str = stem.to_string();
+                                    if !shaders.contains(&stem_str) {
+                                        shaders.push(stem_str);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            shaders.sort();
+            println!("Available Transition Shaders:");
+            for shader in shaders {
+                println!("  - {shader}");
             }
         }
     }
