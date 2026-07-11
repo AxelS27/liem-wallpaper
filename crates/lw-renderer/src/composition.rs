@@ -6,15 +6,17 @@ use windows::Win32::Graphics::DirectComposition::{
     DCompositionCreateDevice, IDCompositionDevice, IDCompositionTarget, IDCompositionVisual,
 };
 use windows::Win32::Graphics::Dxgi::IDXGIDevice;
+use windows::Win32::UI::WindowsAndMessaging::DestroyWindow;
 
 pub struct CompositionContext {
     device: IDCompositionDevice,
     target: IDCompositionTarget,
     root_visual: IDCompositionVisual,
+    overlay_hwnd: HWND,
 }
 
 impl CompositionContext {
-    pub fn new(d3d_device: &ID3D11Device, hwnd: HWND) -> Result<Self, LwError> {
+    pub fn new(d3d_device: &ID3D11Device, overlay_hwnd: HWND) -> Result<Self, LwError> {
         let dxgi_device: IDXGIDevice = d3d_device.cast().map_err(|e| {
             LwError::Renderer(format!("Failed to query IDXGIDevice from D3D11 device: {e}"))
         })?;
@@ -26,7 +28,7 @@ impl CompositionContext {
         };
 
         let target = unsafe {
-            device.CreateTargetForHwnd(hwnd, true).map_err(|e| {
+            device.CreateTargetForHwnd(overlay_hwnd, true).map_err(|e| {
                 LwError::Renderer(format!("Failed to create DComposition target: {e}"))
             })?
         };
@@ -46,7 +48,7 @@ impl CompositionContext {
             })?;
         }
 
-        Ok(Self { device, target, root_visual })
+        Ok(Self { device, target, root_visual, overlay_hwnd })
     }
 
     #[must_use]
@@ -76,3 +78,13 @@ impl CompositionContext {
 
 unsafe impl Send for CompositionContext {}
 unsafe impl Sync for CompositionContext {}
+
+impl Drop for CompositionContext {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = self.root_visual.RemoveAllVisuals();
+            let _ = self.device.Commit();
+            let _ = DestroyWindow(self.overlay_hwnd);
+        }
+    }
+}

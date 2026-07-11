@@ -3,21 +3,39 @@
 use std::fs;
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
-use windows::core::PCWSTR;
+use windows::core::{w, PCWSTR};
 use windows::Win32::System::Registry::{
     RegCloseKey, RegCreateKeyExW, RegDeleteKeyW, RegOpenKeyExW, RegQueryValueExW, RegSetValueExW,
     HKEY, HKEY_CURRENT_USER, KEY_READ, KEY_WRITE, REG_EXPAND_SZ, REG_OPTION_NON_VOLATILE, REG_SZ,
+};
+use windows::Win32::System::Com::{
+    CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED,
+};
+use windows::Win32::UI::Shell::{
+    FileOpenDialog, IFileOpenDialog, FOS_PICKFOLDERS, SIGDN_FILESYSPATH,
+};
+use windows::Win32::UI::WindowsAndMessaging::{
+    MessageBoxW, IDOK, MB_ICONINFORMATION, MB_OKCANCEL,
 };
 
 // Embed release binaries
 const SERVICE_BIN: &[u8] = include_bytes!("../../../target/release/lw-service.exe");
 const CLI_BIN: &[u8] = include_bytes!("../../../target/release/lw.exe");
-const GUI_BIN: &[u8] = include_bytes!("../../../target/release/lw-gui.exe");
 
 // Embed shaders
 const SHADER_FADE: &[u8] = include_bytes!("../../../shaders/fade.hlsl");
-const SHADER_WIPE: &[u8] = include_bytes!("../../../shaders/wipe.hlsl");
-const SHADER_SLIDE: &[u8] = include_bytes!("../../../shaders/slide.hlsl");
+const SHADER_ZOOM_IN: &[u8] = include_bytes!("../../../shaders/zoom-in.hlsl");
+const SHADER_ZOOM_OUT: &[u8] = include_bytes!("../../../shaders/zoom-out.hlsl");
+const SHADER_PIXELATE: &[u8] = include_bytes!("../../../shaders/pixelate.hlsl");
+const SHADER_GLITCH: &[u8] = include_bytes!("../../../shaders/glitch.hlsl");
+
+const SHADER_RADIAL_IN: &[u8] = include_bytes!("../../../shaders/radial-in.hlsl");
+const SHADER_RADIAL_OUT: &[u8] = include_bytes!("../../../shaders/radial-out.hlsl");
+
+const SHADER_SLIDE_LEFT: &[u8] = include_bytes!("../../../shaders/slide-left.hlsl");
+const SHADER_SLIDE_RIGHT: &[u8] = include_bytes!("../../../shaders/slide-right.hlsl");
+const SHADER_SLIDE_UP: &[u8] = include_bytes!("../../../shaders/slide-up.hlsl");
+const SHADER_SLIDE_DOWN: &[u8] = include_bytes!("../../../shaders/slide-down.hlsl");
 
 fn get_install_dir() -> PathBuf {
     let local_app_data = std::env::var("USERPROFILE").unwrap_or_else(|_| ".".to_string());
@@ -41,24 +59,6 @@ fn get_start_menu_shortcut_path() -> PathBuf {
 fn get_desktop_shortcut_path() -> PathBuf {
     let user_profile = std::env::var("USERPROFILE").unwrap_or_else(|_| ".".to_string());
     PathBuf::from(user_profile).join("Desktop").join("Liem Wallpaper.lnk")
-}
-
-fn create_shortcut(target: &Path, shortcut_path: &Path) -> std::io::Result<()> {
-    let ps_script = format!(
-        "$s = (New-Object -ComObject WScript.Shell).CreateShortcut('{}'); $s.TargetPath = '{}'; $s.Save()",
-        shortcut_path.to_string_lossy(),
-        target.to_string_lossy()
-    );
-    let status = std::process::Command::new("powershell")
-        .args(&["-NoProfile", "-Command", &ps_script])
-        .status()?;
-    if !status.success() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "PowerShell shortcut creation failed",
-        ));
-    }
-    Ok(())
 }
 
 fn set_registry_value(subkey: &str, name: &str, value: &str) -> Result<(), String> {
@@ -129,7 +129,7 @@ fn notify_env_change() {
     }
 }
 
-fn add_to_path() -> Result<(), String> {
+fn add_to_path(install_dir: &Path) -> Result<(), String> {
     unsafe {
         let key_w: Vec<u16> = "Environment".encode_utf16().chain(std::iter::once(0)).collect();
         let name_w: Vec<u16> = "Path".encode_utf16().chain(std::iter::once(0)).collect();
@@ -176,7 +176,7 @@ fn add_to_path() -> Result<(), String> {
             }
         }
 
-        let install_dir = get_install_dir().to_string_lossy().into_owned();
+        let install_dir = install_dir.to_string_lossy().into_owned();
 
         // Check if path is already present
         let paths: Vec<&str> = current_path.split(';').collect();
@@ -216,7 +216,7 @@ fn add_to_path() -> Result<(), String> {
     }
 }
 
-fn remove_from_path() -> Result<(), String> {
+fn remove_from_path(install_dir: &Path) -> Result<(), String> {
     unsafe {
         let key_w: Vec<u16> = "Environment".encode_utf16().chain(std::iter::once(0)).collect();
         let name_w: Vec<u16> = "Path".encode_utf16().chain(std::iter::once(0)).collect();
@@ -255,7 +255,7 @@ fn remove_from_path() -> Result<(), String> {
                     buf.pop();
                 }
                 let current_path = String::from_utf16_lossy(&buf);
-                let install_dir = get_install_dir().to_string_lossy().into_owned();
+                let install_dir = install_dir.to_string_lossy().into_owned();
 
                 let mut paths: Vec<String> =
                     current_path.split(';').map(|p| p.trim().to_string()).collect();
@@ -290,13 +290,11 @@ fn remove_from_path() -> Result<(), String> {
     }
 }
 
-fn install() -> std::io::Result<()> {
+fn install(install_dir: &Path) -> std::io::Result<()> {
     // Kill any running instances first to unlock the files
     let _ = std::process::Command::new("taskkill").args(&["/F", "/IM", "lw-service.exe"]).status();
-    let _ = std::process::Command::new("taskkill").args(&["/F", "/IM", "lw-gui.exe"]).status();
 
-    let install_dir = get_install_dir();
-    fs::create_dir_all(&install_dir)?;
+    fs::create_dir_all(install_dir)?;
 
     let shader_dir = install_dir.join("shaders");
     fs::create_dir_all(&shader_dir)?;
@@ -304,21 +302,37 @@ fn install() -> std::io::Result<()> {
     // Write binaries
     fs::write(install_dir.join("lw-service.exe"), SERVICE_BIN)?;
     fs::write(install_dir.join("lw.exe"), CLI_BIN)?;
-    fs::write(install_dir.join("lw-gui.exe"), GUI_BIN)?;
 
     // Copy this installer itself as uninstall.exe
     let current_exe = std::env::current_exe()?;
     fs::copy(&current_exe, install_dir.join("uninstall.exe"))?;
 
     // Write shaders
-    fs::write(shader_dir.join("fade.hlsl"), SHADER_FADE)?;
-    fs::write(shader_dir.join("wipe.hlsl"), SHADER_WIPE)?;
-    fs::write(shader_dir.join("slide.hlsl"), SHADER_SLIDE)?;
+    // Clean up obsolete shaders
+    let _ = fs::remove_file(shader_dir.join("wipe.hlsl"));
+    let _ = fs::remove_file(shader_dir.join("slide.hlsl"));
+    let _ = fs::remove_file(shader_dir.join("wipe-left.hlsl"));
+    let _ = fs::remove_file(shader_dir.join("wipe-right.hlsl"));
+    let _ = fs::remove_file(shader_dir.join("wipe-up.hlsl"));
+    let _ = fs::remove_file(shader_dir.join("wipe-down.hlsl"));
+    let _ = fs::remove_file(shader_dir.join("push-left.hlsl"));
+    let _ = fs::remove_file(shader_dir.join("push-right.hlsl"));
+    let _ = fs::remove_file(shader_dir.join("push-up.hlsl"));
+    let _ = fs::remove_file(shader_dir.join("push-down.hlsl"));
+    let _ = fs::remove_file(shader_dir.join("zoom.hlsl"));
 
-    // Create shortcuts
-    let gui_path = install_dir.join("lw-gui.exe");
-    let _ = create_shortcut(&gui_path, &get_start_menu_shortcut_path());
-    let _ = create_shortcut(&gui_path, &get_desktop_shortcut_path());
+    fs::write(shader_dir.join("fade.hlsl"), SHADER_FADE)?;
+    fs::write(shader_dir.join("zoom-in.hlsl"), SHADER_ZOOM_IN)?;
+    fs::write(shader_dir.join("zoom-out.hlsl"), SHADER_ZOOM_OUT)?;
+    fs::write(shader_dir.join("pixelate.hlsl"), SHADER_PIXELATE)?;
+    fs::write(shader_dir.join("glitch.hlsl"), SHADER_GLITCH)?;
+    fs::write(shader_dir.join("radial-in.hlsl"), SHADER_RADIAL_IN)?;
+    fs::write(shader_dir.join("radial-out.hlsl"), SHADER_RADIAL_OUT)?;
+
+    fs::write(shader_dir.join("slide-left.hlsl"), SHADER_SLIDE_LEFT)?;
+    fs::write(shader_dir.join("slide-right.hlsl"), SHADER_SLIDE_RIGHT)?;
+    fs::write(shader_dir.join("slide-up.hlsl"), SHADER_SLIDE_UP)?;
+    fs::write(shader_dir.join("slide-down.hlsl"), SHADER_SLIDE_DOWN)?;
 
     // Register Uninstaller in Windows Registry (Add/Remove Programs)
     let uninstall_key = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\LiemWallpaper";
@@ -330,10 +344,10 @@ fn install() -> std::io::Result<()> {
     let _ = set_registry_value(uninstall_key, "Publisher", "Liem Wallpaper Contributors");
     let _ = set_registry_value(uninstall_key, "UninstallString", &uninstall_str);
     let _ = set_registry_value(uninstall_key, "InstallLocation", &install_dir.to_string_lossy());
-    let _ = set_registry_value(uninstall_key, "DisplayIcon", &gui_path.to_string_lossy());
+    let _ = set_registry_value(uninstall_key, "DisplayIcon", &install_dir.join("lw-service.exe").to_string_lossy());
 
     // Add installation directory to User Environment PATH
-    let _ = add_to_path();
+    let _ = add_to_path(install_dir);
 
     // Show completion box
     let ps_msg = "Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show('Liem Wallpaper has been installed successfully! The \"lw\" command is now available in your terminal.', 'Installation Complete')";
@@ -345,16 +359,12 @@ fn install() -> std::io::Result<()> {
         .creation_flags(0x08000000) // CREATE_NO_WINDOW
         .spawn();
 
-    // Start GUI after installation finishes
-    let _ = std::process::Command::new(gui_path).spawn();
-
     Ok(())
 }
 
 fn uninstall() -> std::io::Result<()> {
     // 1. Kill running instances
     let _ = std::process::Command::new("taskkill").args(&["/F", "/IM", "lw-service.exe"]).status();
-    let _ = std::process::Command::new("taskkill").args(&["/F", "/IM", "lw-gui.exe"]).status();
 
     // 2. Remove shortcuts
     let _ = fs::remove_file(get_start_menu_shortcut_path());
@@ -390,11 +400,16 @@ fn uninstall() -> std::io::Result<()> {
         }
     }
 
+    // Determine current executable directory dynamically
+    let current_exe = std::env::current_exe()?;
+    let install_dir = current_exe.parent().ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::Other, "Failed to get parent directory")
+    })?;
+
     // Remove installation directory from User Environment PATH
-    let _ = remove_from_path();
+    let _ = remove_from_path(install_dir);
 
     // 4. Trigger self-deletion of directory after exit
-    let install_dir = get_install_dir();
     let cmd_script = format!("timeout /T 1 & rmdir /S /Q \"{}\"", install_dir.to_string_lossy());
 
     std::process::Command::new("cmd")
@@ -409,6 +424,82 @@ fn uninstall() -> std::io::Result<()> {
     Ok(())
 }
 
+fn prompt_installation_flow(default_dir: &Path) -> Option<PathBuf> {
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+
+        let msg = format!(
+            "Welcome to Liem Wallpaper Setup!\n\n\
+             Click OK to select the installation folder.\n\
+             Click Cancel to abort setup."
+        );
+
+        let msg_w: Vec<u16> = msg.encode_utf16().chain(std::iter::once(0)).collect();
+
+        let res = MessageBoxW(
+            None,
+            PCWSTR(msg_w.as_ptr()),
+            w!("Liem Wallpaper Setup"),
+            MB_OKCANCEL | MB_ICONINFORMATION,
+        );
+
+        if res != IDOK {
+            CoUninitialize();
+            return None;
+        }
+
+        let dialog: Result<IFileOpenDialog, _> = CoCreateInstance(&FileOpenDialog, None, CLSCTX_INPROC_SERVER);
+        if let Ok(dialog) = dialog {
+            let mut options = dialog.GetOptions().unwrap_or(Default::default());
+            options |= FOS_PICKFOLDERS;
+            let _ = dialog.SetOptions(options);
+
+            let _ = dialog.SetTitle(w!("Select Installation Folder (We will create a 'LiemWallpaper' folder inside)"));
+
+            // Suggest parent folder of default installation folder as starting directory
+            if let Some(parent_dir) = default_dir.parent() {
+                let parent_dir_w: Vec<u16> = parent_dir.to_string_lossy().encode_utf16().chain(std::iter::once(0)).collect();
+                if let Ok(default_path_w) = windows::Win32::UI::Shell::SHCreateItemFromParsingName::<_, _, windows::Win32::UI::Shell::IShellItem>(
+                    PCWSTR(parent_dir_w.as_ptr()),
+                    None
+                ) {
+                    let _ = dialog.SetFolder(&default_path_w);
+                }
+            }
+
+            if dialog.Show(None).is_ok() {
+                if let Ok(item) = dialog.GetResult() {
+                    if let Ok(display_name) = item.GetDisplayName(SIGDN_FILESYSPATH) {
+                        if let Ok(path_str) = display_name.to_string() {
+                            let mut selected_dir = PathBuf::from(path_str);
+                            
+                            // Tauri/Electron style suffix folder appending:
+                            // Check if directory already ends with "LiemWallpaper" or "Liem Wallpaper".
+                            // If not, append "LiemWallpaper" to it.
+                            let mut append_folder = true;
+                            if let Some(file_name) = selected_dir.file_name() {
+                                let name_str = file_name.to_string_lossy().to_lowercase();
+                                if name_str == "liemwallpaper" || name_str == "liem wallpaper" {
+                                    append_folder = false;
+                                }
+                            }
+                            if append_folder {
+                                selected_dir = selected_dir.join("LiemWallpaper");
+                            }
+
+                            CoUninitialize();
+                            return Some(selected_dir);
+                        }
+                    }
+                }
+            }
+        }
+        
+        CoUninitialize();
+        None
+    }
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() > 1 && args[1] == "--uninstall" {
@@ -416,8 +507,19 @@ fn main() {
             eprintln!("Uninstallation failed: {e}");
         }
     } else {
-        if let Err(e) = install() {
-            eprintln!("Installation failed: {e}");
+        let default_dir = get_install_dir();
+        if let Some(install_dir) = prompt_installation_flow(&default_dir) {
+            if let Err(e) = install(&install_dir) {
+                eprintln!("Installation failed: {e}");
+                let ps_msg = format!(
+                    "Add-Type -AssemblyName PresentationFramework; \
+                     [System.Windows.MessageBox]::Show('Installation failed: {}', 'Installation Failed', 'OK', 'Error')",
+                    e.to_string().replace('\'', "\'\'")
+                );
+                let _ = std::process::Command::new("powershell")
+                    .args(&["-NoProfile", "-Command", &ps_msg])
+                    .status();
+            }
         }
     }
 }

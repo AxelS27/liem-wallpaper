@@ -8,6 +8,7 @@ authors.workspace = true
 lw-core = { workspace = true }
 lw-renderer = { workspace = true }
 windows = { workspace = true }
+tracing = { workspace = true }
 
 [lints]
 workspace = true

@@ -17,20 +17,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // 3. Setup configuration path and load configuration
-    let app_data = std::env::var("APPDATA").unwrap_or_else(|_| ".".to_string());
-    let config_dir = std::path::PathBuf::from(app_data).join("LiemWallpaper");
-    let _ = std::fs::create_dir_all(&config_dir);
+    let exe_path = std::env::current_exe()?;
+    let config_dir = exe_path.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| std::path::PathBuf::from("."));
     let config_path = config_dir.join("config.toml");
 
-    // 3b. Setup default HLSL shaders inside AppData/LiemWallpaper/shaders
+    // 3b. Setup default HLSL shaders inside local shaders/ directory next to executable
     let shader_dir = config_dir.join("shaders");
     let _ = std::fs::create_dir_all(&shader_dir);
-    let _ =
-        std::fs::write(shader_dir.join("fade.hlsl"), include_str!("../../../shaders/fade.hlsl"));
-    let _ =
-        std::fs::write(shader_dir.join("wipe.hlsl"), include_str!("../../../shaders/wipe.hlsl"));
-    let _ =
-        std::fs::write(shader_dir.join("slide.hlsl"), include_str!("../../../shaders/slide.hlsl"));
+    
+    // Clean up old obsolete shaders
+    let _ = std::fs::remove_file(shader_dir.join("wipe.hlsl"));
+    let _ = std::fs::remove_file(shader_dir.join("slide.hlsl"));
+    let _ = std::fs::remove_file(shader_dir.join("wipe-left.hlsl"));
+    let _ = std::fs::remove_file(shader_dir.join("wipe-right.hlsl"));
+    let _ = std::fs::remove_file(shader_dir.join("wipe-up.hlsl"));
+    let _ = std::fs::remove_file(shader_dir.join("wipe-down.hlsl"));
+    let _ = std::fs::remove_file(shader_dir.join("push-left.hlsl"));
+    let _ = std::fs::remove_file(shader_dir.join("push-right.hlsl"));
+    let _ = std::fs::remove_file(shader_dir.join("push-up.hlsl"));
+    let _ = std::fs::remove_file(shader_dir.join("push-down.hlsl"));
+    let _ = std::fs::remove_file(shader_dir.join("zoom.hlsl"));
+
+    // Write all available shaders
+    let _ = std::fs::write(shader_dir.join("fade.hlsl"), include_str!("../../../shaders/fade.hlsl"));
+    let _ = std::fs::write(shader_dir.join("zoom-in.hlsl"), include_str!("../../../shaders/zoom-in.hlsl"));
+    let _ = std::fs::write(shader_dir.join("zoom-out.hlsl"), include_str!("../../../shaders/zoom-out.hlsl"));
+    let _ = std::fs::write(shader_dir.join("pixelate.hlsl"), include_str!("../../../shaders/pixelate.hlsl"));
+    let _ = std::fs::write(shader_dir.join("glitch.hlsl"), include_str!("../../../shaders/glitch.hlsl"));
+    
+    let _ = std::fs::write(shader_dir.join("radial-in.hlsl"), include_str!("../../../shaders/radial-in.hlsl"));
+    let _ = std::fs::write(shader_dir.join("radial-out.hlsl"), include_str!("../../../shaders/radial-out.hlsl"));
+
+    let _ = std::fs::write(shader_dir.join("slide-left.hlsl"), include_str!("../../../shaders/slide-left.hlsl"));
+    let _ = std::fs::write(shader_dir.join("slide-right.hlsl"), include_str!("../../../shaders/slide-right.hlsl"));
+    let _ = std::fs::write(shader_dir.join("slide-up.hlsl"), include_str!("../../../shaders/slide-up.hlsl"));
+    let _ = std::fs::write(shader_dir.join("slide-down.hlsl"), include_str!("../../../shaders/slide-down.hlsl"));
 
     // 3c. Setup default icon in AppData
     let _ = std::fs::write(config_dir.join("icon.ico"), include_bytes!("../../../assets/icon.ico"));

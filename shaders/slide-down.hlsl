@@ -13,8 +13,10 @@ struct PS_INPUT {
 };
 
 float4 main(PS_INPUT input) : SV_Target {
-    if (input.tex.x < progress) {
-        return textureTo.Sample(samplerState, input.tex);
+    if (input.tex.y <= progress) {
+        float2 offsetTex = input.tex;
+        offsetTex.y += (1.0 - progress);
+        return textureTo.Sample(samplerState, offsetTex);
     } else {
         return textureFrom.Sample(samplerState, input.tex);
     }

@@ -1,16 +1,39 @@
 use lw_core::{
-    traits::{TransitionRenderer, WallpaperManager},
+    traits::WallpaperManager,
     IpcRequest, IpcResponse,
 };
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::windows::named_pipe::ServerOptions;
 use tracing::{error, info};
-use windows::Win32::Foundation::RECT;
+use windows::Win32::Foundation::{HWND, RECT};
+
+struct ActiveOverlayContext {
+    hwnd: isize,
+    swapchain: windows::Win32::Graphics::Dxgi::IDXGISwapChain1,
+    bounds: RECT,
+}
+
+static ACTIVE_OVERLAYS: std::sync::Mutex<Vec<ActiveOverlayContext>> = std::sync::Mutex::new(Vec::new());
+static ACTIVE_D3D_CONTEXT: std::sync::Mutex<Option<Arc<lw_renderer::D3D11Context>>> = std::sync::Mutex::new(None);
+
+/// Destroys any previously active overlay windows.
+/// MUST only be called after new overlay windows are already created and visible,
+/// so the user never sees the bare desktop underneath.
+fn destroy_active_overlays() {
+    let mut overlays = ACTIVE_OVERLAYS.lock().unwrap_or_else(|e| e.into_inner());
+    if !overlays.is_empty() {
+        tracing::info!("Destroying {} previous overlay window(s)...", overlays.len());
+        for ctx in overlays.drain(..) {
+            unsafe {
+                let _ = windows::Win32::UI::WindowsAndMessaging::DestroyWindow(HWND(ctx.hwnd));
+            }
+        }
+    }
+}
 
 pub const PIPE_NAME: &str = r"\\.\pipe\liem-wallpaper";
 
-/// Runs the IPC Named Pipe server command processing loop.
 /// Runs the IPC Named Pipe server command processing loop.
 pub async fn run_ipc_server<W>(
     config: Arc<std::sync::Mutex<lw_core::Config>>,
@@ -110,11 +133,15 @@ where
                             error!(
                                 "Transition failed: {e:?}. Falling back to native wallpaper set."
                             );
-                            wallpaper_manager.set_wallpaper(&path)
+                            let r = wallpaper_manager.set_wallpaper(&path);
+                            destroy_active_overlays();
+                            r
                         }
                     }
                 } else {
-                    wallpaper_manager.set_wallpaper(&path)
+                    let r = wallpaper_manager.set_wallpaper(&path);
+                    destroy_active_overlays();
+                    r
                 };
 
                 match res {
@@ -144,7 +171,8 @@ where
                             lw_core::ipc::TransitionParams {
                                 effect_type: cfg.transition_default.effect_type.clone(),
                                 duration_ms: cfg.transition_default.duration_ms,
-                                easing: cfg.transition_default.easing,
+                                easing_style: cfg.transition_default.easing_style,
+                                easing_direction: cfg.transition_default.easing_direction,
                             }
                         };
                         match run_transition_and_set(&next_wp, &params, wallpaper_manager.as_ref())
@@ -190,46 +218,130 @@ pub fn run_transition_and_set<W>(
 where
     W: WallpaperManager + 'static,
 {
-    // 1. Get current wallpaper
+    // 1. Get current wallpaper path and normalize/map transition name
     let from_path = wallpaper_manager.get_current_wallpaper()?;
+    let mut effect_type = params.effect_type.clone();
+    if effect_type == "zoom" {
+        effect_type = "zoom-in".to_string();
+    } else if effect_type == "slide" {
+        effect_type = "slide-left".to_string();
+    }
 
-    // 2. Query active monitor bounds from wallpaper manager
+    // 2. Query active monitor bounds
     let monitors_rects = wallpaper_manager.get_monitor_rects()?;
     let monitors_bounds: Vec<RECT> = monitors_rects
         .iter()
         .map(|r| RECT { left: r.left, top: r.top, right: r.right, bottom: r.bottom })
         .collect();
 
-    // 3. Initialize D3D11 and DirectComposition
-    let d3d_context = Arc::new(lw_renderer::D3D11Context::new()?);
-    let worker_w = lw_renderer::find_worker_w()?;
-
-    let comp_context =
-        Arc::new(lw_renderer::CompositionContext::new(d3d_context.device(), worker_w)?);
-    let app_data = std::env::var("APPDATA").unwrap_or_else(|_| ".".to_string());
-    let shader_dir = std::path::PathBuf::from(app_data).join("LiemWallpaper").join("shaders");
-
-    // 4. Setup transition engine
-    let engine = lw_transition::TransitionEngine::new(
-        d3d_context,
-        &comp_context,
-        &monitors_bounds,
-        shader_dir,
-    )?;
-
-    // 5. Render transition
-    engine.render_transition(&from_path, target_path, params.duration_ms, &params.effect_type)?;
-
-    // 6. Update native wallpaper
-    wallpaper_manager.set_wallpaper(target_path)?;
-
-    // 7. Clear visual content to hide transition overlay
-    unsafe {
-        comp_context.root_visual().SetContent(None).map_err(|e| {
-            lw_core::LwError::Renderer(format!("Failed to clear visual content: {e}"))
-        })?;
-        comp_context.commit()?;
+    if monitors_bounds.is_empty() {
+        return Err(lw_core::LwError::Renderer("No monitors detected".to_string()));
     }
 
+    // 3. Initialize D3D11 and locate WorkerW (reuse the D3D context if available to prevent device mismatches)
+    let d3d_context = {
+        let mut d3d_ctx_store = ACTIVE_D3D_CONTEXT.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(ref ctx) = *d3d_ctx_store {
+            Arc::clone(ctx)
+        } else {
+            let ctx = Arc::new(lw_renderer::D3D11Context::new()?);
+            *d3d_ctx_store = Some(Arc::clone(&ctx));
+            ctx
+        }
+    };
+    let worker_w = lw_renderer::find_worker_w()?;
+
+    let exe_path = std::env::current_exe().unwrap_or_default();
+    let install_dir = exe_path.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| std::path::PathBuf::from("."));
+    let shader_dir = install_dir.join("shaders");
+
+    // Check if we can reuse the existing overlay windows and swapchains.
+    // If they match in count and dimensions, we reuse them to prevent taskbar Z-order/painting flickers.
+    let mut existing_contexts = Vec::new();
+    {
+        let mut overlays = ACTIVE_OVERLAYS.lock().unwrap_or_else(|e| e.into_inner());
+        if !overlays.is_empty() && overlays.len() == monitors_bounds.len() {
+            let all_match = overlays.iter().zip(&monitors_bounds).all(|(ov, mb)| {
+                ov.bounds.left == mb.left
+                    && ov.bounds.top == mb.top
+                    && ov.bounds.right == mb.right
+                    && ov.bounds.bottom == mb.bottom
+            });
+            if all_match {
+                existing_contexts = overlays
+                    .drain(..)
+                    .map(|ctx| (HWND(ctx.hwnd), ctx.swapchain, ctx.bounds))
+                    .collect();
+            }
+        }
+    }
+
+    let was_reused = !existing_contexts.is_empty();
+
+    let mut engine = if was_reused {
+        tracing::info!("Reusing existing {} overlay window(s) and swapchain(s).", existing_contexts.len());
+        lw_transition::TransitionEngine::new_from_existing(
+            Arc::clone(&d3d_context),
+            existing_contexts,
+            shader_dir,
+        )?
+    } else {
+        // If we cannot reuse them, we destroy any existing overlays first.
+        destroy_active_overlays();
+        lw_transition::TransitionEngine::new(
+            Arc::clone(&d3d_context),
+            worker_w,
+            &monitors_bounds,
+            shader_dir,
+        )?
+    };
+
+    engine.default_easing_style = params.easing_style;
+    engine.default_easing_direction = params.easing_direction;
+
+    // 5. Render transition animation.
+    //    If we are NOT reusing existing windows (meaning new ones were created), we trigger
+    //    destroy_active_overlays immediately after the first frame is presented to prevent start-of-transition flicker.
+    //    If we ARE reusing, there is nothing to destroy.
+    engine.render_transition_with_callback(
+        &from_path,
+        target_path,
+        params.duration_ms,
+        &effect_type,
+        || {
+            if !was_reused {
+                destroy_active_overlays();
+            }
+        },
+    )?;
+
+    // 6. Take overlay handles, swapchains, and bounds out of the engine so they persist.
+    let contexts = engine.take_overlay_contexts_with_bounds();
+
+    // 7. Store overlay contexts globally to keep swapchains and windows alive, avoiding end-of-transition flicker!
+    {
+        let mut overlays = ACTIVE_OVERLAYS.lock().unwrap_or_else(|e| e.into_inner());
+        *overlays = contexts
+            .into_iter()
+            .map(|(hwnd, sc, bounds)| ActiveOverlayContext {
+                hwnd: hwnd.0,
+                swapchain: sc,
+                bounds,
+            })
+            .collect();
+    }
+
+    // 8. Store D3D context globally to keep the D3D11 device and context alive
+    {
+        let mut d3d_ctx_store = ACTIVE_D3D_CONTEXT.lock().unwrap_or_else(|e| e.into_inner());
+        *d3d_ctx_store = Some(d3d_context);
+    }
+
+    // 9. Update the actual Windows desktop wallpaper. Since our overlay window is active and fully opaque,
+    //    the user will not see any native Windows slide/fade animation.
+    wallpaper_manager.set_wallpaper(target_path)?;
+
+    tracing::info!("Transition complete. Overlay and swapchains persist, Windows desktop wallpaper updated.");
     Ok(())
 }
+

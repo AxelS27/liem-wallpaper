@@ -13,13 +13,11 @@ struct PS_INPUT {
 };
 
 float4 main(PS_INPUT input) : SV_Target {
-    float2 offsetTex = input.tex;
-    // Slide right-to-left
-    if (offsetTex.x < 1.0 - progress) {
-        offsetTex.x += progress;
-        return textureFrom.Sample(samplerState, offsetTex);
-    } else {
-        offsetTex.x -= (1.0 - progress);
+    if (input.tex.x <= progress) {
+        float2 offsetTex = input.tex;
+        offsetTex.x += (1.0 - progress);
         return textureTo.Sample(samplerState, offsetTex);
+    } else {
+        return textureFrom.Sample(samplerState, input.tex);
     }
 }

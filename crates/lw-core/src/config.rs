@@ -11,11 +11,44 @@ pub struct Config {
     pub position: WallpaperPosition,
 }
 
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum EasingStyle {
+    Linear,
+    Sine,
+    Quad,
+    Cubic,
+    Quart,
+    Quint,
+    Exponential,
+    Circular,
+    Back,
+    Bounce,
+    Elastic,
+}
+
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum EasingDirection {
+    In,
+    Out,
+    InOut,
+}
+
+fn default_easing_style() -> EasingStyle {
+    EasingStyle::Quad
+}
+
+fn default_easing_direction() -> EasingDirection {
+    EasingDirection::InOut
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TransitionConfig {
     pub effect_type: String,
     pub duration_ms: u32,
-    pub easing: EasingType,
+    #[serde(default = "default_easing_style")]
+    pub easing_style: EasingStyle,
+    #[serde(default = "default_easing_direction")]
+    pub easing_direction: EasingDirection,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -24,14 +57,6 @@ pub struct SchedulerConfig {
     pub interval_mins: u32,
     pub change_on_startup: bool,
     pub run_on_startup: bool,
-}
-
-#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum EasingType {
-    Linear,
-    EaseIn,
-    EaseOut,
-    EaseInOut,
 }
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -58,7 +83,12 @@ impl Default for Config {
 
 impl Default for TransitionConfig {
     fn default() -> Self {
-        Self { effect_type: "fade".to_string(), duration_ms: 1000, easing: EasingType::EaseInOut }
+        Self {
+            effect_type: "fade".to_string(),
+            duration_ms: 1000,
+            easing_style: EasingStyle::Quad,
+            easing_direction: EasingDirection::InOut,
+        }
     }
 }
 

@@ -16,7 +16,8 @@ pub enum IpcRequest {
 pub struct TransitionParams {
     pub effect_type: String,
     pub duration_ms: u32,
-    pub easing: crate::config::EasingType,
+    pub easing_style: crate::config::EasingStyle,
+    pub easing_direction: crate::config::EasingDirection,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

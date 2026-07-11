@@ -134,7 +134,8 @@ pub async fn run_scheduler<W>(
                 let params = lw_core::ipc::TransitionParams {
                     effect_type: transition_default.effect_type.clone(),
                     duration_ms: transition_default.duration_ms,
-                    easing: transition_default.easing,
+                    easing_style: transition_default.easing_style,
+                    easing_direction: transition_default.easing_direction,
                 };
 
                 if let Err(e) =

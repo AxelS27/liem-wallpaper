@@ -1,6 +1,6 @@
 #![allow(clippy::field_reassign_with_default)]
 
-use lw_core::{Config, EasingType, WallpaperPosition};
+use lw_core::{Config, EasingStyle, EasingDirection, WallpaperPosition};
 use std::path::PathBuf;
 
 #[test]
@@ -9,7 +9,8 @@ fn test_default_config() {
     assert!(!config.shuffle);
     assert_eq!(config.transition_default.effect_type, "fade");
     assert_eq!(config.transition_default.duration_ms, 1000);
-    assert_eq!(config.transition_default.easing, EasingType::EaseInOut);
+    assert_eq!(config.transition_default.easing_style, EasingStyle::Quad);
+    assert_eq!(config.transition_default.easing_direction, EasingDirection::InOut);
     assert!(config.scheduler.enabled);
     assert_eq!(config.scheduler.interval_mins, 15);
     assert!(config.scheduler.change_on_startup);
@@ -69,9 +70,10 @@ fn test_toml_serialization_deserialization() {
     let mut config = Config::default();
     config.wallpaper_dir = std::env::temp_dir();
     config.shuffle = true;
-    config.transition_default.effect_type = "wipe".to_string();
+    config.transition_default.effect_type = "slide-left".to_string();
     config.transition_default.duration_ms = 2000;
-    config.transition_default.easing = EasingType::Linear;
+    config.transition_default.easing_style = EasingStyle::Linear;
+    config.transition_default.easing_direction = EasingDirection::In;
     config.scheduler.enabled = false;
     config.scheduler.interval_mins = 30;
     config.scheduler.change_on_startup = false;

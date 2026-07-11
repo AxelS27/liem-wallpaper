@@ -25,6 +25,11 @@ impl WallpaperManager for MockWallpaperManager {
         Ok(())
     }
 
+    fn set_wallpaper_registry_only(&self, path: &Path) -> Result<()> {
+        *self.current.lock().unwrap() = path.to_path_buf();
+        Ok(())
+    }
+
     fn get_monitor_rects(&self) -> Result<Vec<lw_core::traits::MonitorRect>> {
         Ok(vec![lw_core::traits::MonitorRect { left: 0, top: 0, right: 1920, bottom: 1080 }])
     }

@@ -1,57 +1,94 @@
 # Liem Wallpaper
 
-**Liem Wallpaper** is a modular, high-performance Windows desktop application designed to render smooth, GPU-accelerated wallpaper transitions.
+**Liem Wallpaper** is a lightweight, high-performance, GPU-accelerated Windows desktop wallpaper manager. It runs silently in the background as a daemon and provides instant.
+
+## Command Line Interface (CLI) Usage
+
+You can control everything from any PowerShell or Command Prompt window using the `lw` tool:
+
+### 1. View Current Status
+Check if the daemon is active, see what wallpaper is currently displayed, and view scheduler info:
+```powershell
+lw status
+```
+
+### 2. Set Wallpaper Immediately
+Change the desktop background to any image:
+```powershell
+lw set "C:\path\to\wallpaper.jpg"
+```
+
+You can customize the transition on the fly:
+```powershell
+# Set wallpaper with a pixelate transition over 2.5 seconds
+lw set "C:\path\to\wallpaper.jpg" -t pixelate -d 2500
+
+# Set wallpaper with a slide-left transition using ease-out-quint
+lw set "C:\path\to\wallpaper.jpg" -t slide-left -d 1500 -s quint -g out
+```
+
+### 3. Trigger Next Wallpaper
+If you have configured a wallpapers folder, trigger a transition to the next random wallpaper in the queue:
+```powershell
+lw next
+```
+
+### 4. Control the Scheduler
+Enable or disable automatic wallpaper changes:
+```powershell
+# Start automated rotation
+lw start
+
+# Stop automated rotation
+lw stop
+```
 
 ---
 
-## Key Features
+## CLI Command Options
 
-1. **GPU-Accelerated Transitions**: Uses Direct3D 11 and DirectComposition to compile HLSL transition shaders dynamically, rendering smooth, tearing-free animations synced to V-Sync.
-2. **Icon-Safe Windows Hooking**: Seamlessly injects composition visuals into the Win32 `WorkerW` window hierarchy, ensuring wallpaper transitions run behind desktop icons and shortcut layers without capturing user inputs.
-3. **Smart Rotation Scheduler**: Automatically cycles desktop backgrounds at scheduled intervals. Uses GDI active window bounds check to detect fullscreen applications (e.g. games, presentation software) and defers rotations to avoid disruption.
-4. **Local Named Pipe IPC**: Integrates background daemon, CLI control, and Slint settings UI via serialized JSON-over-IPC Windows Named Pipes.
-5. **Zero-Resource Idle State**: Automatically releases WIC decoders, HLSL pipelines, swapchains, and visuals immediately post-transition. Idle resource footprint remains at **0.0% CPU** and **under 30MB RAM**.
-6. **Multi-Monitor Configuration**: Auto-discovers active displays, maps screen coordinates, and instantiates independent DXGI swapchains to perform smooth transitions across all monitors in sync.
+When setting a wallpaper or configuring defaults, you can customize the transition engine using these parameters:
 
----
+### Transitions (`-t`, `--transition`)
+Choose from the built-in GPU-accelerated HLSL transitions, or specify the name of any custom `.hlsl` shader file placed in your `shaders/` directory (see the [Custom Transition Shaders Guide](SHADERS.md) for how to build your own):
+*   `fade`: Smooth fade.
+*   `zoom-in`: concentric circular zoom scaling up.
+*   `zoom-out`: concentric circular zoom scaling down.
+*   `pixelate`: Retro pixelation effect.
+*   `glitch`: Chromatic aberration glitch.
+*   `radial-in` / `radial-out`: Circular clock wipe.
+*   `slide-left` / `slide-right` / `slide-up` / `slide-down`: Sliding transition.
 
-## Workspace Structure
+### Easing Styles (`-s`, `--style`)
+*   `linear`, `sine`, `quad`, `cubic`, `quart`, `quint`, `exponential`, `circular`, `back`, `bounce`, `elastic`.
 
-The workspace is organized into modular crates:
-- **[lw-core](crates/lw-core/)**: Common configuration, traits, logging setup, and error enums.
-- **[lw-renderer](crates/lw-renderer/)**: Direct3D 11 device contexts, composition setup, window hooking, and WIC loaders.
-- **[lw-transition](crates/lw-transition/)**: Interpolation curves, transition shaders compiler, and the core rendering engine.
-- **[lw-wallpaper](crates/lw-wallpaper/)**: Native Windows COM wrapper for wallpaper manipulation and monitor coordinate discovery.
-- **[lw-service](crates/lw-service/)**: Background daemon runner, IPC server, and scheduler task loop.
-- **[lw](crates/lw-cli/)**: Command-line control interface (`lw.exe`).
-- **[lw-gui](crates/lw-gui/)**: Slint-based settings monitoring UI.
-- **[lw-setup](crates/lw-setup/)**: Standalone pure Rust installer to deploy binaries, configure PATH environment, and register Windows uninstaller.
-- **[lw-plugin](crates/lw-plugin/)**: Reserved slot for dynamic shaders loading.
+### Easing Directions (`-g`, `--dir`)
+*   `in`, `out`, `inout`.
 
----
 
-## Quickstart & Installation
 
-1. **Verify the workspace builds and all tests pass**:
-   ```powershell
-   cargo test
-   ```
+## Configuration (`config.toml`)
 
-2. **Build Release Binaries & Installer**:
-   ```powershell
-   cargo build --release
-   ```
-   This compiles all binaries (including `lw-service.exe`, `lw-gui.exe`, and the CLI utility `lw.exe`) and embeds them into `target/release/lw-setup.exe`.
+The application stores its configuration file at `config.toml` in your installation directory (next to `lw-service.exe`). You can edit it manually to set default values:
 
-3. **Install the Application**:
-   Run `target/release/lw-setup.exe` once.
-   This will install the program into `%LocalAppData%\Programs\LiemWallpaper`, register the `lw` command in your shell PATH, create Desktop/Start Menu shortcuts, and start the background settings UI.
+```toml
+# The directory containing your desktop wallpapers
+wallpapers_dir = "C:\\Users\\YourName\\Pictures\\Wallpapers"
 
-4. **Verify Command Line**:
-   Open a new terminal window and run:
-   ```powershell
-   lw status
-   ```
+[scheduler]
+# Whether automated rotation is enabled on startup
+enabled = true
+# Rotation interval in minutes
+interval_mins = 15
+# Automatically launch the daemon service when Windows starts
+run_on_startup = true
 
-For end-to-end integration scenario guides, see **[Quickstart & Verification Guide](specs/001-wallpaper-transitions/quickstart.md)**.
-For architectural design details, see **[Architecture Documentation](docs/architecture.md)**.
+[transition_default]
+# The default transition effect name
+effect_type = "fade"
+# The default duration in milliseconds
+duration_ms = 1000
+# The default easing curves
+easing_style = "Quad"
+easing_direction = "InOut"
+```

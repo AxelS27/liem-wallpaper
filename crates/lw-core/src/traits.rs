@@ -16,6 +16,9 @@ pub trait WallpaperManager: Send + Sync {
     /// Sets the wallpaper path natively via Win32.
     fn set_wallpaper(&self, path: &Path) -> Result<()>;
 
+    /// Updates the wallpaper path in the registry without notifying Explorer visually.
+    fn set_wallpaper_registry_only(&self, path: &Path) -> Result<()>;
+
     /// Gets the bounds of all active monitors.
     fn get_monitor_rects(&self) -> Result<Vec<MonitorRect>>;
 }

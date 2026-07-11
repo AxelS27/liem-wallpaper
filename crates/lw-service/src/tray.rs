@@ -7,7 +7,7 @@ use windows::Win32::UI::Shell::{
 use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DispatchMessageW, GetCursorPos,
     GetMessageW, LoadImageW, RegisterClassW, SetForegroundWindow, TrackPopupMenu, TranslateMessage,
-    HICON, IMAGE_ICON, LR_LOADFROMFILE, MF_STRING, MSG, TPM_RETURNCMD, WM_LBUTTONDBLCLK,
+    HICON, IMAGE_ICON, LR_LOADFROMFILE, MF_STRING, MSG, TPM_RETURNCMD,
     WM_RBUTTONUP, WM_USER, WNDCLASSW,
 };
 
@@ -34,18 +34,6 @@ unsafe extern "system" fn window_proc(
                     MF_STRING,
                     1,
                     PCWSTR(
-                        "Open Settings"
-                            .encode_utf16()
-                            .chain(std::iter::once(0))
-                            .collect::<Vec<u16>>()
-                            .as_ptr(),
-                    ),
-                );
-                let _ = AppendMenuW(
-                    hmenu,
-                    MF_STRING,
-                    2,
-                    PCWSTR(
                         "Skip Wallpaper"
                             .encode_utf16()
                             .chain(std::iter::once(0))
@@ -56,7 +44,7 @@ unsafe extern "system" fn window_proc(
                 let _ = AppendMenuW(
                     hmenu,
                     MF_STRING,
-                    3,
+                    2,
                     PCWSTR(
                         "Exit"
                             .encode_utf16()
@@ -71,18 +59,6 @@ unsafe extern "system" fn window_proc(
 
                 match command.0 {
                     1 => {
-                        // Open Settings
-                        let local_app_data =
-                            std::env::var("USERPROFILE").unwrap_or_else(|_| ".".to_string());
-                        let gui_path = PathBuf::from(local_app_data)
-                            .join("AppData")
-                            .join("Local")
-                            .join("Programs")
-                            .join("LiemWallpaper")
-                            .join("lw-gui.exe");
-                        let _ = std::process::Command::new(gui_path).spawn();
-                    }
-                    2 => {
                         // Skip Wallpaper via Named Pipe
                         tokio::spawn(async {
                             let client = tokio::net::windows::named_pipe::ClientOptions::new()
@@ -98,7 +74,7 @@ unsafe extern "system" fn window_proc(
                             }
                         });
                     }
-                    3 => {
+                    2 => {
                         // Exit daemon
                         let _ = Shell_NotifyIconW(
                             NIM_DELETE,
@@ -108,17 +84,6 @@ unsafe extern "system" fn window_proc(
                     }
                     _ => {}
                 }
-            } else if event == WM_LBUTTONDBLCLK {
-                // Double click opens Settings
-                let local_app_data =
-                    std::env::var("USERPROFILE").unwrap_or_else(|_| ".".to_string());
-                let gui_path = PathBuf::from(local_app_data)
-                    .join("AppData")
-                    .join("Local")
-                    .join("Programs")
-                    .join("LiemWallpaper")
-                    .join("lw-gui.exe");
-                let _ = std::process::Command::new(gui_path).spawn();
             }
             LRESULT(0)
         }
@@ -175,8 +140,9 @@ pub fn start_tray_icon() {
         );
 
         // Load Icon
-        let app_data = std::env::var("APPDATA").unwrap_or_else(|_| ".".to_string());
-        let icon_path = PathBuf::from(app_data).join("LiemWallpaper").join("icon.ico");
+        let exe_path = std::env::current_exe().unwrap_or_default();
+        let install_dir = exe_path.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| PathBuf::from("."));
+        let icon_path = install_dir.join("icon.ico");
         let icon_path_w: Vec<u16> =
             icon_path.to_string_lossy().encode_utf16().chain(std::iter::once(0)).collect();
 
