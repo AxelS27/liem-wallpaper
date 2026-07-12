@@ -275,15 +275,7 @@ where
         }
     }
 
-    // 2. Set actual wallpaper FIRST in the background so Windows starts its native update.
-    //    Setting it first allows the native Windows background change to finish in the background
-    //    while our overlay runs, completely hiding the secondary native fade!
-    wallpaper_manager.set_wallpaper(target_path)?;
-
-    // Give Windows Explorer a brief moment to process the change and update the WorkerW hierarchy
-    std::thread::sleep(std::time::Duration::from_millis(50));
-
-    // 3. Query active monitor bounds
+    // 2. Query active monitor bounds
     let monitors_rects = wallpaper_manager.get_monitor_rects()?;
     let monitors_bounds: Vec<RECT> = monitors_rects
         .iter()
@@ -294,7 +286,7 @@ where
         return Err(lw_core::LwError::Renderer("No monitors detected".to_string()));
     }
 
-    // 4. Initialize D3D11 and locate the fresh active WorkerW window
+    // 3. Initialize D3D11 and locate the fresh active WorkerW window
     let d3d_context = {
         let mut d3d_ctx_store = ACTIVE_D3D_CONTEXT.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(ref ctx) = *d3d_ctx_store {
@@ -327,8 +319,13 @@ where
         engine.target_fps = fps;
     }
 
-    // 5. Render transition animation on top of the native wallpaper change
+    // 4. Render transition animation on top of the native wallpaper change.
+    //    We execute the native wallpaper change IMMEDIATELY after the first frame is presented.
+    //    This guarantees the transition overlay is already fully visible, showing the starting image,
+    //    completely covering the desktop before the native Windows wallpaper update/fade begins!
     let duration_ms = (params.duration_secs * 1000.0) as u32;
+    let mut set_wallpaper_err = None;
+
     engine.render_transition_with_callback(
         &from_path,
         target_path,
@@ -337,10 +334,20 @@ where
         || {
             // Destroy any previous overlay windows as soon as the first frame is presented
             destroy_active_overlays();
+
+            // Set actual wallpaper in the background. Since the overlay is active and visible,
+            // the user will not see the native fade-in at all!
+            if let Err(e) = wallpaper_manager.set_wallpaper(target_path) {
+                set_wallpaper_err = Some(e);
+            }
         },
     )?;
 
-    // 6. Destroy the transition overlay immediately when finished.
+    if let Some(err) = set_wallpaper_err {
+        return Err(err);
+    }
+
+    // 5. Destroy the transition overlay immediately when finished.
     //    We do NOT reuse overlays to avoid dead window hooks or Explorer hierarchy out-of-sync issues.
     drop(engine);
 
