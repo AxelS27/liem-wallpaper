@@ -204,7 +204,7 @@ checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
 
 [[package]]
 name = "lw"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "clap",
  "lw-core",
@@ -215,7 +215,7 @@ dependencies = [
 
 [[package]]
 name = "lw-core"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "serde",
  "thiserror",
@@ -226,11 +226,11 @@ dependencies = [
 
 [[package]]
 name = "lw-plugin"
-version = "0.1.4"
+version = "0.1.5"
 
 [[package]]
 name = "lw-renderer"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "lw-core",
  "tracing",
@@ -239,7 +239,7 @@ dependencies = [
 
 [[package]]
 name = "lw-service"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "lw-core",
  "lw-renderer",
@@ -254,14 +254,14 @@ dependencies = [
 
 [[package]]
 name = "lw-setup"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "windows",
 ]
 
 [[package]]
 name = "lw-transition"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "lw-core",
  "lw-renderer",
@@ -271,7 +271,7 @@ dependencies = [
 
 [[package]]
 name = "lw-wallpaper"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "lw-core",
  "windows",

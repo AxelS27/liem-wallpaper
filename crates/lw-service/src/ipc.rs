@@ -286,7 +286,7 @@ where
         return Err(lw_core::LwError::Renderer("No monitors detected".to_string()));
     }
 
-    // 3. Initialize D3D11 and locate the fresh active WorkerW window
+    // 3. Initialize D3D11 and locate WorkerW (reuse the D3D context if available to prevent device mismatches)
     let d3d_context = {
         let mut d3d_ctx_store = ACTIVE_D3D_CONTEXT.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(ref ctx) = *d3d_ctx_store {
@@ -303,15 +303,46 @@ where
     let install_dir = exe_path.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| std::path::PathBuf::from("."));
     let shader_dir = install_dir.join("shaders");
 
-    // Clean up any existing overlays first
-    destroy_active_overlays();
+    // Check if we can reuse the existing overlay windows and swapchains.
+    // If they match in count and dimensions, we reuse them to prevent taskbar Z-order/painting flickers.
+    let mut existing_contexts = Vec::new();
+    {
+        let mut overlays = ACTIVE_OVERLAYS.lock().unwrap_or_else(|e| e.into_inner());
+        if !overlays.is_empty() && overlays.len() == monitors_bounds.len() {
+            let all_match = overlays.iter().zip(&monitors_bounds).all(|(ov, mb)| {
+                ov.bounds.left == mb.left
+                    && ov.bounds.top == mb.top
+                    && ov.bounds.right == mb.right
+                    && ov.bounds.bottom == mb.bottom
+            });
+            if all_match {
+                existing_contexts = overlays
+                    .drain(..)
+                    .map(|ctx| (HWND(ctx.hwnd), ctx.swapchain, ctx.bounds))
+                    .collect();
+            }
+        }
+    }
 
-    let mut engine = lw_transition::TransitionEngine::new(
-        Arc::clone(&d3d_context),
-        worker_w,
-        &monitors_bounds,
-        shader_dir,
-    )?;
+    let was_reused = !existing_contexts.is_empty();
+
+    let mut engine = if was_reused {
+        tracing::info!("Reusing existing {} overlay window(s) and swapchain(s).", existing_contexts.len());
+        lw_transition::TransitionEngine::new_from_existing(
+            Arc::clone(&d3d_context),
+            existing_contexts,
+            shader_dir,
+        )?
+    } else {
+        // If we cannot reuse them, we destroy any existing overlays first.
+        destroy_active_overlays();
+        lw_transition::TransitionEngine::new(
+            Arc::clone(&d3d_context),
+            worker_w,
+            &monitors_bounds,
+            shader_dir,
+        )?
+    };
 
     engine.default_easing_style = params.easing_style;
     engine.default_easing_direction = params.easing_direction;
@@ -320,48 +351,50 @@ where
     }
 
     // 4. Render transition animation.
-    //    We render the transition animation first. This ensures the Explorer window hierarchy
-    //    is completely stable during D3D11 drawing, preventing custom effects (like slide) from being cut short.
-    //    When the transition finishes (reaches 100% progress), we call set_wallpaper, which triggers
-    //    the native Windows wallpaper fade-in in the background under our overlay.
-    //    The render loop then continues for 1.0 second, keeping the overlay active and continuously presenting
-    //    the final frame to fully hide the native wallpaper change.
+    //    If we are NOT reusing existing windows (meaning new ones were created), we trigger
+    //    destroy_active_overlays immediately after the first frame is presented to prevent start-of-transition flicker.
+    //    If we ARE reusing, there is nothing to destroy.
     let duration_ms = (params.duration_secs * 1000.0) as u32;
-    let mut set_wallpaper_err = None;
-
     engine.render_transition_with_callback(
         &from_path,
         target_path,
         duration_ms,
         &effect_type,
         || {
-            // Destroy any previous overlay windows as soon as the first frame is presented
-            destroy_active_overlays();
-        },
-        || {
-            // Set actual wallpaper in the background. Since the overlay is still active and drawing,
-            // the user will not see the native fade-in at all!
-            if let Err(e) = wallpaper_manager.set_wallpaper(target_path) {
-                set_wallpaper_err = Some(e);
+            if !was_reused {
+                destroy_active_overlays();
             }
         },
     )?;
 
-    if let Some(err) = set_wallpaper_err {
-        return Err(err);
+    // 5. Take overlay handles, swapchains, and bounds out of the engine so they persist.
+    let contexts = engine.take_overlay_contexts_with_bounds();
+
+    // 6. Store overlay contexts globally to keep swapchains and windows alive, avoiding end-of-transition flicker!
+    {
+        let mut overlays = ACTIVE_OVERLAYS.lock().unwrap_or_else(|e| e.into_inner());
+        *overlays = contexts
+            .into_iter()
+            .map(|(hwnd, sc, bounds)| ActiveOverlayContext {
+                hwnd: hwnd.0,
+                swapchain: sc,
+                bounds,
+            })
+            .collect();
     }
 
-    // 5. Destroy the transition overlay now that the native background change has completed.
-    //    We do NOT reuse overlays to avoid dead window hooks or Explorer hierarchy out-of-sync issues.
-    drop(engine);
-
-    // Store D3D context globally to keep the D3D11 device and context alive
+    // 7. Store D3D context globally to keep the D3D11 device and context alive
     {
         let mut d3d_ctx_store = ACTIVE_D3D_CONTEXT.lock().unwrap_or_else(|e| e.into_inner());
         *d3d_ctx_store = Some(d3d_context);
     }
 
-    tracing::info!("Transition complete. Windows desktop wallpaper updated successfully.");
+    // 8. Update the wallpaper in the registry only.
+    //    We do NOT notify Explorer/Windows of the change (no SPI_SETDESKWALLPAPER) during the active session.
+    //    This completely prevents Explorer from triggering the native fade-in animation and from recreating WorkerW!
+    wallpaper_manager.set_wallpaper_registry_only(target_path)?;
+
+    tracing::info!("Transition complete. Registry updated, overlay window remains persistent.");
     Ok(())
 }
 
