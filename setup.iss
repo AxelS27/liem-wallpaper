@@ -33,6 +33,14 @@ Filename: "{app}\lw-service.exe"; Description: "Start Liem Wallpaper Service"; F
 Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; Check: NeedsAddPath
 
 [Code]
+function InitializeSetup(): Boolean;
+var
+  ResultCode: Integer;
+begin
+  Result := True;
+  Exec('taskkill.exe', '/F /IM lw-service.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;
+
 function NeedsAddPath(): Boolean;
 var
   Path: String;
