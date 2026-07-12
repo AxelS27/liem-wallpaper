@@ -319,13 +319,10 @@ where
         engine.target_fps = fps;
     }
 
-    // 4. Render transition animation on top of the native wallpaper change.
-    //    We execute the native wallpaper change IMMEDIATELY after the first frame is presented.
-    //    This guarantees the transition overlay is already fully visible, showing the starting image,
-    //    completely covering the desktop before the native Windows wallpaper update/fade begins!
+    // 4. Render transition animation.
+    //    We render the transition animation first. This ensures the Explorer window hierarchy
+    //    is completely stable during D3D11 drawing, preventing custom effects (like slide) from being cut short.
     let duration_ms = (params.duration_secs * 1000.0) as u32;
-    let mut set_wallpaper_err = None;
-
     engine.render_transition_with_callback(
         &from_path,
         target_path,
@@ -334,20 +331,18 @@ where
         || {
             // Destroy any previous overlay windows as soon as the first frame is presented
             destroy_active_overlays();
-
-            // Set actual wallpaper in the background. Since the overlay is active and visible,
-            // the user will not see the native fade-in at all!
-            if let Err(e) = wallpaper_manager.set_wallpaper(target_path) {
-                set_wallpaper_err = Some(e);
-            }
         },
     )?;
 
-    if let Some(err) = set_wallpaper_err {
-        return Err(err);
-    }
+    // 5. Update the actual Windows desktop wallpaper in the background.
+    //    This triggers Windows Explorer to start its native wallpaper change (which includes a fade-in).
+    wallpaper_manager.set_wallpaper(target_path)?;
 
-    // 5. Destroy the transition overlay immediately when finished.
+    // 6. Sleep for 750ms while keeping the overlay window active and showing the final frame.
+    //    This hides the native Windows fade-in entirely under the overlay.
+    std::thread::sleep(std::time::Duration::from_millis(750));
+
+    // 7. Destroy the transition overlay now that the native background change has completed.
     //    We do NOT reuse overlays to avoid dead window hooks or Explorer hierarchy out-of-sync issues.
     drop(engine);
 
