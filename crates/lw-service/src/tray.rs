@@ -7,8 +7,8 @@ use windows::Win32::UI::Shell::{
 use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DispatchMessageW, GetCursorPos,
     GetMessageW, LoadImageW, RegisterClassW, SetForegroundWindow, TrackPopupMenu, TranslateMessage,
-    HICON, IMAGE_ICON, LR_LOADFROMFILE, MF_STRING, MSG, TPM_RETURNCMD,
-    WM_RBUTTONUP, WM_USER, WNDCLASSW,
+    HICON, IMAGE_ICON, LR_LOADFROMFILE, MF_STRING, MSG, TPM_RETURNCMD, WM_RBUTTONUP, WM_USER,
+    WNDCLASSW,
 };
 
 const WM_TRAYICON: u32 = WM_USER + 100;
@@ -65,7 +65,8 @@ unsafe extern "system" fn window_proc(
                                 .open(r"\\.\pipe\liem-wallpaper");
                             if let Ok(mut pipe) = client {
                                 use tokio::io::AsyncWriteExt;
-                                let req = lw_core::ipc::IpcRequest::NextWallpaper { transition: None };
+                                let req =
+                                    lw_core::ipc::IpcRequest::NextWallpaper { transition: None };
                                 if let Ok(bytes) = serde_json::to_vec(&req) {
                                     let mut payload = bytes;
                                     payload.push(b'\n');
@@ -141,7 +142,8 @@ pub fn start_tray_icon() {
 
         // Load Icon
         let exe_path = std::env::current_exe().unwrap_or_default();
-        let install_dir = exe_path.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| PathBuf::from("."));
+        let install_dir =
+            exe_path.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| PathBuf::from("."));
         let icon_path = install_dir.join("icon.ico");
         let icon_path_w: Vec<u16> =
             icon_path.to_string_lossy().encode_utf16().chain(std::iter::once(0)).collect();

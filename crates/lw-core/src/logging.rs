@@ -10,17 +10,15 @@ pub fn init_logging() {
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
             let log_path = exe_dir.join("lw-service.log");
-            if let Ok(file) = std::fs::OpenOptions::new()
-                .create(true)
-                .write(true)
-                .truncate(true)
-                .open(&log_path)
+            if let Ok(file) =
+                std::fs::OpenOptions::new().create(true).write(true).truncate(true).open(&log_path)
             {
                 let fmt_layer = fmt::layer()
                     .with_thread_ids(true)
                     .with_target(true)
                     .with_writer(std::sync::Mutex::new(file));
-                let _ = tracing_subscriber::registry().with(filter_layer).with(fmt_layer).try_init();
+                let _ =
+                    tracing_subscriber::registry().with(filter_layer).with(fmt_layer).try_init();
                 return;
             }
         }

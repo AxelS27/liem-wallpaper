@@ -1,4 +1,4 @@
-use lw_core::{EasingStyle, EasingDirection};
+use lw_core::{EasingDirection, EasingStyle};
 use lw_transition::interpolate;
 
 #[test]
@@ -17,11 +17,7 @@ fn test_interpolate_boundaries() {
         EasingStyle::Elastic,
     ];
 
-    let directions = [
-        EasingDirection::In,
-        EasingDirection::Out,
-        EasingDirection::InOut,
-    ];
+    let directions = [EasingDirection::In, EasingDirection::Out, EasingDirection::InOut];
 
     for &style in &styles {
         for &direction in &directions {
@@ -38,9 +34,16 @@ fn test_interpolate_boundaries() {
 
 #[test]
 fn test_linear_interpolation() {
-    assert!((interpolate(0.25, EasingStyle::Linear, EasingDirection::In) - 0.25).abs() < f32::EPSILON);
-    assert!((interpolate(0.5, EasingStyle::Linear, EasingDirection::Out) - 0.5).abs() < f32::EPSILON);
-    assert!((interpolate(0.75, EasingStyle::Linear, EasingDirection::InOut) - 0.75).abs() < f32::EPSILON);
+    assert!(
+        (interpolate(0.25, EasingStyle::Linear, EasingDirection::In) - 0.25).abs() < f32::EPSILON
+    );
+    assert!(
+        (interpolate(0.5, EasingStyle::Linear, EasingDirection::Out) - 0.5).abs() < f32::EPSILON
+    );
+    assert!(
+        (interpolate(0.75, EasingStyle::Linear, EasingDirection::InOut) - 0.75).abs()
+            < f32::EPSILON
+    );
 }
 
 #[test]
@@ -52,7 +55,9 @@ fn test_quad_in_interpolation() {
 
 #[test]
 fn test_quad_out_interpolation() {
-    assert!((interpolate(0.5, EasingStyle::Quad, EasingDirection::Out) - 0.75).abs() < f32::EPSILON);
+    assert!(
+        (interpolate(0.5, EasingStyle::Quad, EasingDirection::Out) - 0.75).abs() < f32::EPSILON
+    );
     assert!(interpolate(0.25, EasingStyle::Quad, EasingDirection::Out) > 0.25);
     assert!(interpolate(0.75, EasingStyle::Quad, EasingDirection::Out) > 0.75);
 }

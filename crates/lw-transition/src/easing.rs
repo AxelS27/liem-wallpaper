@@ -1,4 +1,4 @@
-use lw_core::{EasingStyle, EasingDirection};
+use lw_core::{EasingDirection, EasingStyle};
 
 /// Interpolates time `t` (from 0.0 to 1.0) using the specified `EasingStyle` and `EasingDirection`.
 #[must_use]

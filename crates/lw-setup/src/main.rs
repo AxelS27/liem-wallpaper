@@ -4,19 +4,18 @@ use std::fs;
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use windows::core::{w, PCWSTR};
+use windows::Win32::System::Com::{
+    CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER,
+    COINIT_APARTMENTTHREADED,
+};
 use windows::Win32::System::Registry::{
     RegCloseKey, RegCreateKeyExW, RegDeleteKeyW, RegOpenKeyExW, RegQueryValueExW, RegSetValueExW,
     HKEY, HKEY_CURRENT_USER, KEY_READ, KEY_WRITE, REG_EXPAND_SZ, REG_OPTION_NON_VOLATILE, REG_SZ,
 };
-use windows::Win32::System::Com::{
-    CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED,
-};
 use windows::Win32::UI::Shell::{
     FileOpenDialog, IFileOpenDialog, FOS_PICKFOLDERS, SIGDN_FILESYSPATH,
 };
-use windows::Win32::UI::WindowsAndMessaging::{
-    MessageBoxW, IDOK, MB_ICONINFORMATION, MB_OKCANCEL,
-};
+use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, IDOK, MB_ICONINFORMATION, MB_OKCANCEL};
 
 // Embed release binaries
 const SERVICE_BIN: &[u8] = include_bytes!("../../../target/release/lw-service.exe");
@@ -348,7 +347,11 @@ fn install(install_dir: &Path) -> std::io::Result<()> {
     let _ = set_registry_value(uninstall_key, "Publisher", "Liem Wallpaper Contributors");
     let _ = set_registry_value(uninstall_key, "UninstallString", &uninstall_str);
     let _ = set_registry_value(uninstall_key, "InstallLocation", &install_dir.to_string_lossy());
-    let _ = set_registry_value(uninstall_key, "DisplayIcon", &install_dir.join("lw-service.exe").to_string_lossy());
+    let _ = set_registry_value(
+        uninstall_key,
+        "DisplayIcon",
+        &install_dir.join("lw-service.exe").to_string_lossy(),
+    );
 
     // Add installation directory to User Environment PATH
     let _ = add_to_path(install_dir);
@@ -452,21 +455,27 @@ fn prompt_installation_flow(default_dir: &Path) -> Option<PathBuf> {
             return None;
         }
 
-        let dialog: Result<IFileOpenDialog, _> = CoCreateInstance(&FileOpenDialog, None, CLSCTX_INPROC_SERVER);
+        let dialog: Result<IFileOpenDialog, _> =
+            CoCreateInstance(&FileOpenDialog, None, CLSCTX_INPROC_SERVER);
         if let Ok(dialog) = dialog {
             let mut options = dialog.GetOptions().unwrap_or(Default::default());
             options |= FOS_PICKFOLDERS;
             let _ = dialog.SetOptions(options);
 
-            let _ = dialog.SetTitle(w!("Select Installation Folder (We will create a 'LiemWallpaper' folder inside)"));
+            let _ = dialog.SetTitle(w!(
+                "Select Installation Folder (We will create a 'LiemWallpaper' folder inside)"
+            ));
 
             // Suggest parent folder of default installation folder as starting directory
             if let Some(parent_dir) = default_dir.parent() {
-                let parent_dir_w: Vec<u16> = parent_dir.to_string_lossy().encode_utf16().chain(std::iter::once(0)).collect();
-                if let Ok(default_path_w) = windows::Win32::UI::Shell::SHCreateItemFromParsingName::<_, _, windows::Win32::UI::Shell::IShellItem>(
-                    PCWSTR(parent_dir_w.as_ptr()),
-                    None
-                ) {
+                let parent_dir_w: Vec<u16> =
+                    parent_dir.to_string_lossy().encode_utf16().chain(std::iter::once(0)).collect();
+                if let Ok(default_path_w) = windows::Win32::UI::Shell::SHCreateItemFromParsingName::<
+                    _,
+                    _,
+                    windows::Win32::UI::Shell::IShellItem,
+                >(PCWSTR(parent_dir_w.as_ptr()), None)
+                {
                     let _ = dialog.SetFolder(&default_path_w);
                 }
             }
@@ -476,7 +485,7 @@ fn prompt_installation_flow(default_dir: &Path) -> Option<PathBuf> {
                     if let Ok(display_name) = item.GetDisplayName(SIGDN_FILESYSPATH) {
                         if let Ok(path_str) = display_name.to_string() {
                             let mut selected_dir = PathBuf::from(path_str);
-                            
+
                             // Tauri/Electron style suffix folder appending:
                             // Check if directory already ends with "LiemWallpaper" or "Liem Wallpaper".
                             // If not, append "LiemWallpaper" to it.
@@ -498,7 +507,7 @@ fn prompt_installation_flow(default_dir: &Path) -> Option<PathBuf> {
                 }
             }
         }
-        
+
         CoUninitialize();
         None
     }

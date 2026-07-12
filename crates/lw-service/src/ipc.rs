@@ -1,7 +1,4 @@
-use lw_core::{
-    traits::WallpaperManager,
-    IpcRequest, IpcResponse,
-};
+use lw_core::{traits::WallpaperManager, IpcRequest, IpcResponse};
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::windows::named_pipe::ServerOptions;
@@ -15,8 +12,10 @@ struct ActiveOverlayContext {
     bounds: RECT,
 }
 
-static ACTIVE_OVERLAYS: std::sync::Mutex<Vec<ActiveOverlayContext>> = std::sync::Mutex::new(Vec::new());
-static ACTIVE_D3D_CONTEXT: std::sync::Mutex<Option<Arc<lw_renderer::D3D11Context>>> = std::sync::Mutex::new(None);
+static ACTIVE_OVERLAYS: std::sync::Mutex<Vec<ActiveOverlayContext>> =
+    std::sync::Mutex::new(Vec::new());
+static ACTIVE_D3D_CONTEXT: std::sync::Mutex<Option<Arc<lw_renderer::D3D11Context>>> =
+    std::sync::Mutex::new(None);
 
 /// Destroys any previously active overlay windows.
 /// MUST only be called after new overlay windows are already created and visible,
@@ -197,7 +196,7 @@ where
                 let mut cfg = config.lock().unwrap();
                 *cfg = new_config;
                 let _ = crate::startup::set_startup_run(cfg.scheduler.run_on_startup);
-                
+
                 // Save config.toml next to the executable
                 if let Ok(exe_path) = std::env::current_exe() {
                     if let Some(exe_dir) = exe_path.parent() {
@@ -238,14 +237,26 @@ where
         effect_type = "slide-left".to_string();
     } else if effect_type == "random" {
         let exe_path = std::env::current_exe().unwrap_or_default();
-        let install_dir = exe_path.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| std::path::PathBuf::from("."));
+        let install_dir = exe_path
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| std::path::PathBuf::from("."));
         let shader_dir = install_dir.join("shaders");
 
         let mut shaders = vec![
-            "fade".to_string(), "zoom-in".to_string(), "zoom-out".to_string(),
-            "pixelate".to_string(), "glitch".to_string(), "radial-in".to_string(),
-            "radial-out".to_string(), "slide-left".to_string(), "slide-right".to_string(),
-            "slide-up".to_string(), "slide-down".to_string(), "clock".to_string(), "clock-reverse".to_string()
+            "fade".to_string(),
+            "zoom-in".to_string(),
+            "zoom-out".to_string(),
+            "pixelate".to_string(),
+            "glitch".to_string(),
+            "radial-in".to_string(),
+            "radial-out".to_string(),
+            "slide-left".to_string(),
+            "slide-right".to_string(),
+            "slide-up".to_string(),
+            "slide-down".to_string(),
+            "clock".to_string(),
+            "clock-reverse".to_string(),
         ];
 
         if let Ok(entries) = std::fs::read_dir(&shader_dir) {
@@ -300,7 +311,8 @@ where
     let worker_w = lw_renderer::find_worker_w()?;
 
     let exe_path = std::env::current_exe().unwrap_or_default();
-    let install_dir = exe_path.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| std::path::PathBuf::from("."));
+    let install_dir =
+        exe_path.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| std::path::PathBuf::from("."));
     let shader_dir = install_dir.join("shaders");
 
     // Check if we can reuse the existing overlay windows and swapchains.
@@ -327,7 +339,10 @@ where
     let was_reused = !existing_contexts.is_empty();
 
     let mut engine = if was_reused {
-        tracing::info!("Reusing existing {} overlay window(s) and swapchain(s).", existing_contexts.len());
+        tracing::info!(
+            "Reusing existing {} overlay window(s) and swapchain(s).",
+            existing_contexts.len()
+        );
         lw_transition::TransitionEngine::new_from_existing(
             Arc::clone(&d3d_context),
             existing_contexts,
@@ -375,11 +390,7 @@ where
         let mut overlays = ACTIVE_OVERLAYS.lock().unwrap_or_else(|e| e.into_inner());
         *overlays = contexts
             .into_iter()
-            .map(|(hwnd, sc, bounds)| ActiveOverlayContext {
-                hwnd: hwnd.0,
-                swapchain: sc,
-                bounds,
-            })
+            .map(|(hwnd, sc, bounds)| ActiveOverlayContext { hwnd: hwnd.0, swapchain: sc, bounds })
             .collect();
     }
 
@@ -397,4 +408,3 @@ where
     tracing::info!("Transition complete. Registry updated, overlay window remains persistent.");
     Ok(())
 }
-

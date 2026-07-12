@@ -180,7 +180,8 @@ async fn main() {
                 std::env::current_dir().map(|d| d.join(&path)).unwrap_or(path)
             };
 
-            let (parsed_style, parsed_dir) = parse_style_and_dir(style.as_deref(), direction.as_deref());
+            let (parsed_style, parsed_dir) =
+                parse_style_and_dir(style.as_deref(), direction.as_deref());
             let request = IpcRequest::SetWallpaper {
                 path: abs_path,
                 transition: Some(lw_core::ipc::TransitionParams {
@@ -198,10 +199,16 @@ async fn main() {
             }
         }
         Commands::Next { transition, duration, style, direction, fps } => {
-            let t_params = if transition.is_none() && duration.is_none() && style.is_none() && direction.is_none() && fps.is_none() {
+            let t_params = if transition.is_none()
+                && duration.is_none()
+                && style.is_none()
+                && direction.is_none()
+                && fps.is_none()
+            {
                 None
             } else {
-                let (parsed_style, parsed_dir) = parse_style_and_dir(style.as_deref(), direction.as_deref());
+                let (parsed_style, parsed_dir) =
+                    parse_style_and_dir(style.as_deref(), direction.as_deref());
                 Some(lw_core::ipc::TransitionParams {
                     effect_type: transition.unwrap_or_else(|| "fade".to_string()),
                     duration_secs: duration.unwrap_or(1.0),
@@ -210,16 +217,24 @@ async fn main() {
                     target_fps: fps,
                 })
             };
-            if let Err(e) = send_request_and_print(IpcRequest::NextWallpaper { transition: t_params }).await {
+            if let Err(e) =
+                send_request_and_print(IpcRequest::NextWallpaper { transition: t_params }).await
+            {
                 eprintln!("CLI Error: {e}");
                 std::process::exit(1);
             }
         }
         Commands::Prev { transition, duration, style, direction, fps } => {
-            let t_params = if transition.is_none() && duration.is_none() && style.is_none() && direction.is_none() && fps.is_none() {
+            let t_params = if transition.is_none()
+                && duration.is_none()
+                && style.is_none()
+                && direction.is_none()
+                && fps.is_none()
+            {
                 None
             } else {
-                let (parsed_style, parsed_dir) = parse_style_and_dir(style.as_deref(), direction.as_deref());
+                let (parsed_style, parsed_dir) =
+                    parse_style_and_dir(style.as_deref(), direction.as_deref());
                 Some(lw_core::ipc::TransitionParams {
                     effect_type: transition.unwrap_or_else(|| "fade".to_string()),
                     duration_secs: duration.unwrap_or(1.0),
@@ -228,18 +243,29 @@ async fn main() {
                     target_fps: fps,
                 })
             };
-            if let Err(e) = send_request_and_print(IpcRequest::PrevWallpaper { transition: t_params }).await {
+            if let Err(e) =
+                send_request_and_print(IpcRequest::PrevWallpaper { transition: t_params }).await
+            {
                 eprintln!("CLI Error: {e}");
                 std::process::exit(1);
             }
         }
         Commands::Shaders => {
             let mut shaders = vec![
-                "fade".to_string(), "zoom-in".to_string(), "zoom-out".to_string(),
-                "pixelate".to_string(), "glitch".to_string(), "radial-in".to_string(),
-                "radial-out".to_string(), "slide-left".to_string(), "slide-right".to_string(),
-                "slide-up".to_string(), "slide-down".to_string(), "random".to_string(),
-                "clock".to_string(), "clock-reverse".to_string()
+                "fade".to_string(),
+                "zoom-in".to_string(),
+                "zoom-out".to_string(),
+                "pixelate".to_string(),
+                "glitch".to_string(),
+                "radial-in".to_string(),
+                "radial-out".to_string(),
+                "slide-left".to_string(),
+                "slide-right".to_string(),
+                "slide-up".to_string(),
+                "slide-down".to_string(),
+                "random".to_string(),
+                "clock".to_string(),
+                "clock-reverse".to_string(),
             ];
 
             if let Ok(exe_path) = std::env::current_exe() {
@@ -248,7 +274,9 @@ async fn main() {
                     if let Ok(entries) = std::fs::read_dir(local_shaders) {
                         for entry in entries.flatten() {
                             let path = entry.path();
-                            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("hlsl") {
+                            if path.is_file()
+                                && path.extension().and_then(|s| s.to_str()) == Some("hlsl")
+                            {
                                 if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
                                     let stem_str = stem.to_string();
                                     if !shaders.contains(&stem_str) {
@@ -334,7 +362,9 @@ fn run_interactive_update() -> Result<String, String> {
         } else if line == "INSTALLING" {
             println!("Launching silent installer in background...");
         } else if line == "SUCCESS" {
-            return Ok("Update launched successfully! Liem Wallpaper will restart shortly.".to_string());
+            return Ok(
+                "Update launched successfully! Liem Wallpaper will restart shortly.".to_string()
+            );
         } else if line == "UPTODATE" {
             return Ok(format!("Liem Wallpaper is already up-to-date (v{current_version})."));
         } else if line.starts_with("ERROR:") {

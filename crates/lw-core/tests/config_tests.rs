@@ -1,6 +1,6 @@
 #![allow(clippy::field_reassign_with_default)]
 
-use lw_core::{Config, EasingStyle, EasingDirection, WallpaperPosition};
+use lw_core::{Config, EasingDirection, EasingStyle, WallpaperPosition};
 use std::path::PathBuf;
 
 #[test]

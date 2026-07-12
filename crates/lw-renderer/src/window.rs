@@ -5,11 +5,10 @@ use windows::Win32::Foundation::{BOOL, FALSE, HWND, LPARAM, LRESULT, RECT, TRUE,
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, EnumWindows, FindWindowExW, FindWindowW,
     GetAncestor, GetWindowLongPtrW, GetWindowRect, IsWindowVisible, RegisterClassW,
-    SendMessageTimeoutW, SetWindowLongPtrW, SetWindowPos, ShowWindow, WNDCLASSW,
-    GA_PARENT, GWL_EXSTYLE, GWL_STYLE, SMTO_NORMAL, SWP_NOACTIVATE,
-    SWP_NOZORDER, SWP_SHOWWINDOW, SW_SHOW, WS_CHILD, WS_EX_LAYERED, WS_EX_NOACTIVATE,
-    WS_EX_TRANSPARENT, WS_VISIBLE, SWP_NOMOVE, SWP_NOSIZE, SWP_FRAMECHANGED,
-    WS_CLIPCHILDREN, WS_CLIPSIBLINGS,
+    SendMessageTimeoutW, SetWindowLongPtrW, SetWindowPos, ShowWindow, GA_PARENT, GWL_EXSTYLE,
+    GWL_STYLE, SMTO_NORMAL, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
+    SWP_SHOWWINDOW, SW_SHOW, WNDCLASSW, WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_EX_LAYERED,
+    WS_EX_NOACTIVATE, WS_EX_TRANSPARENT, WS_VISIBLE,
 };
 
 struct SearchContext {
@@ -60,7 +59,10 @@ pub fn find_worker_w() -> Result<HWND, LwError> {
 
     // If discovery fails, return Progman as our last resort.
     if ctx.worker_w.0 == 0 {
-        tracing::warn!("Failed to find WorkerW containing SHELLDLL_DefView. Falling back to Progman: {:?}", progman.0);
+        tracing::warn!(
+            "Failed to find WorkerW containing SHELLDLL_DefView. Falling back to Progman: {:?}",
+            progman.0
+        );
         Ok(progman)
     } else {
         tracing::info!("Found active desktop WorkerW window at handle: {:?}", ctx.worker_w.0);
@@ -118,9 +120,8 @@ static REGISTER_OVERLAY_CLASS: Once = Once::new();
 /// Creates a temporary transparent overlay window parented to WorkerW for rendering transitions.
 pub fn create_overlay_window(parent: HWND, rect: RECT) -> Result<HWND, LwError> {
     let instance = unsafe {
-        windows::Win32::System::LibraryLoader::GetModuleHandleW(None).map_err(|e| {
-            LwError::Renderer(format!("Failed to get module handle: {e}"))
-        })?
+        windows::Win32::System::LibraryLoader::GetModuleHandleW(None)
+            .map_err(|e| LwError::Renderer(format!("Failed to get module handle: {e}")))?
     };
 
     let class_name = w!("LiemWallpaperOverlayClass");
@@ -152,7 +153,8 @@ pub fn create_overlay_window(parent: HWND, rect: RECT) -> Result<HWND, LwError> 
         let parent_visible_after = IsWindowVisible(parent).as_bool();
         tracing::info!(
             "Parent WorkerW visibility - Before ShowWindow: {}, After ShowWindow: {}",
-            parent_visible_before, parent_visible_after
+            parent_visible_before,
+            parent_visible_after
         );
 
         let parent_style = GetWindowLongPtrW(parent, GWL_STYLE);
@@ -162,12 +164,16 @@ pub fn create_overlay_window(parent: HWND, rect: RECT) -> Result<HWND, LwError> 
             let _ = SetWindowPos(
                 parent,
                 HWND(0),
-                0, 0, 0, 0,
+                0,
+                0,
+                0,
+                0,
                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER | SWP_FRAMECHANGED,
             );
             tracing::info!(
                 "Applied WS_CLIPCHILDREN to parent WorkerW. Style before: 0x{:X}, after: 0x{:X}",
-                parent_style, new_parent_style
+                parent_style,
+                new_parent_style
             );
         }
 
@@ -209,7 +215,8 @@ pub fn create_overlay_window(parent: HWND, rect: RECT) -> Result<HWND, LwError> 
             );
             tracing::info!(
                 "Positioned child overlay HWND: {:?} behind SHELLDLL_DefView: {:?}",
-                hwnd.0, shell_view.0
+                hwnd.0,
+                shell_view.0
             );
         } else {
             // Sibling view not found, fallback to HWND_TOP
@@ -247,4 +254,3 @@ pub fn create_overlay_window(parent: HWND, rect: RECT) -> Result<HWND, LwError> 
         Ok(hwnd)
     }
 }
-

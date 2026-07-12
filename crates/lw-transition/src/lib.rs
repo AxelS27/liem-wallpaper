@@ -5,20 +5,17 @@ pub use easing::interpolate;
 
 use lw_core::error::LwError;
 use lw_core::traits::TransitionRenderer;
-use lw_core::{EasingStyle, EasingDirection};
+use lw_core::{EasingDirection, EasingStyle};
 use lw_renderer::{create_overlay_window, load_texture_from_file, D3D11Context};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use windows::core::ComInterface;
 use windows::Win32::Foundation::{FALSE, HWND, RECT};
-use windows::Win32::UI::WindowsAndMessaging::{
-    DispatchMessageW, PeekMessageW, TranslateMessage, MSG, PM_REMOVE,
-};
 use windows::Win32::Graphics::Direct3D11::{
-    ID3D11RenderTargetView, ID3D11SamplerState, ID3D11Texture2D, ID3D11VertexShader, D3D11_BIND_CONSTANT_BUFFER,
-    D3D11_BUFFER_DESC, D3D11_CPU_ACCESS_WRITE, D3D11_FILTER_MIN_MAG_MIP_LINEAR,
-    D3D11_MAP_WRITE_DISCARD, D3D11_SAMPLER_DESC, D3D11_TEXTURE_ADDRESS_CLAMP, D3D11_USAGE_DYNAMIC,
-    D3D11_VIEWPORT,
+    ID3D11RenderTargetView, ID3D11SamplerState, ID3D11Texture2D, ID3D11VertexShader,
+    D3D11_BIND_CONSTANT_BUFFER, D3D11_BUFFER_DESC, D3D11_CPU_ACCESS_WRITE,
+    D3D11_FILTER_MIN_MAG_MIP_LINEAR, D3D11_MAP_WRITE_DISCARD, D3D11_SAMPLER_DESC,
+    D3D11_TEXTURE_ADDRESS_CLAMP, D3D11_USAGE_DYNAMIC, D3D11_VIEWPORT,
 };
 use windows::Win32::Graphics::Dxgi::Common::{
     DXGI_ALPHA_MODE_IGNORE, DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_SAMPLE_DESC,
@@ -26,6 +23,9 @@ use windows::Win32::Graphics::Dxgi::Common::{
 use windows::Win32::Graphics::Dxgi::{
     IDXGIFactory2, IDXGISwapChain1, DXGI_SCALING_NONE, DXGI_SWAP_CHAIN_DESC1,
     DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, DXGI_USAGE_RENDER_TARGET_OUTPUT,
+};
+use windows::Win32::UI::WindowsAndMessaging::{
+    DispatchMessageW, PeekMessageW, TranslateMessage, MSG, PM_REMOVE,
 };
 
 pub struct MonitorRenderContext {
@@ -191,25 +191,16 @@ impl TransitionEngine {
 
             let swapchain = unsafe {
                 dxgi_factory
-                    .CreateSwapChainForHwnd(
-                        d3d_device,
-                        hwnd,
-                        &swapchain_desc,
-                        None,
-                        None,
-                    )
+                    .CreateSwapChainForHwnd(d3d_device, hwnd, &swapchain_desc, None, None)
                     .map_err(|e| {
-                        LwError::Renderer(format!(
-                            "Failed to create swapchain for HWND: {e}"
-                        ))
-                    })?
+                    LwError::Renderer(format!("Failed to create swapchain for HWND: {e}"))
+                })?
             };
 
             // Get Render Target View (RTV)
-            let back_buffer: ID3D11Texture2D = unsafe {
-                swapchain.GetBuffer(0)
-            }
-            .map_err(|e| LwError::Renderer(format!("Failed to get swapchain back buffer: {e}")))?;
+            let back_buffer: ID3D11Texture2D = unsafe { swapchain.GetBuffer(0) }.map_err(|e| {
+                LwError::Renderer(format!("Failed to get swapchain back buffer: {e}"))
+            })?;
 
             let mut rtv = None;
             unsafe {
@@ -285,10 +276,9 @@ impl TransitionEngine {
 
         for (hwnd, swapchain, bounds) in existing {
             // Get Render Target View (RTV)
-            let back_buffer: ID3D11Texture2D = unsafe {
-                swapchain.GetBuffer(0)
-            }
-            .map_err(|e| LwError::Renderer(format!("Failed to get swapchain back buffer: {e}")))?;
+            let back_buffer: ID3D11Texture2D = unsafe { swapchain.GetBuffer(0) }.map_err(|e| {
+                LwError::Renderer(format!("Failed to get swapchain back buffer: {e}"))
+            })?;
 
             let mut rtv = None;
             unsafe {
@@ -317,13 +307,14 @@ impl TransitionEngine {
     /// Takes ownership of the overlay window handles, swapchains, and bounds, preventing Drop from destroying them.
     /// The caller is responsible for destroying these windows later (e.g., at the start of the next transition).
     pub fn take_overlay_contexts_with_bounds(&mut self) -> Vec<(HWND, IDXGISwapChain1, RECT)> {
-        let contexts: Vec<(HWND, IDXGISwapChain1, RECT)> = self.monitors
-            .iter()
-            .map(|m| (m.hwnd, m.swapchain.clone(), m.bounds))
-            .collect();
+        let contexts: Vec<(HWND, IDXGISwapChain1, RECT)> =
+            self.monitors.iter().map(|m| (m.hwnd, m.swapchain.clone(), m.bounds)).collect();
         // Clear the monitors so Drop doesn't destroy them
         self.monitors.clear();
-        tracing::info!("Took {} overlay contexts with bounds for persistent display.", contexts.len());
+        tracing::info!(
+            "Took {} overlay contexts with bounds for persistent display.",
+            contexts.len()
+        );
         contexts
     }
 
@@ -345,7 +336,10 @@ impl TransitionEngine {
 
         tracing::info!(
             "Starting GPU transition. Effect: {}, Duration: {}ms, From: {:?}, To: {:?}",
-            effect_type, duration_ms, from_image, to_image
+            effect_type,
+            duration_ms,
+            from_image,
+            to_image
         );
 
         // 1. Load textures
@@ -356,7 +350,10 @@ impl TransitionEngine {
 
         tracing::info!(
             "Transition textures loaded. From size: {}x{}, To size: {}x{}",
-            _width_from, _height_from, _width_to, _height_to
+            _width_from,
+            _height_from,
+            _width_to,
+            _height_to
         );
 
         // 2. Load and Compile Pixel Shader
@@ -364,7 +361,8 @@ impl TransitionEngine {
         if !shader_path.exists() {
             if let Ok(exe_path) = std::env::current_exe() {
                 if let Some(exe_dir) = exe_path.parent() {
-                    let local_shader_path = exe_dir.join("shaders").join(format!("{effect_type}.hlsl"));
+                    let local_shader_path =
+                        exe_dir.join("shaders").join(format!("{effect_type}.hlsl"));
                     if local_shader_path.exists() {
                         shader_path = local_shader_path;
                     }
@@ -437,12 +435,15 @@ impl TransitionEngine {
             }
 
             let t = elapsed.as_secs_f32() / duration.as_secs_f32();
-            let progress = easing::interpolate(t, self.default_easing_style, self.default_easing_direction);
+            let progress =
+                easing::interpolate(t, self.default_easing_style, self.default_easing_direction);
 
             if frame_count % 30 == 0 {
                 tracing::info!(
                     "GPU render loop - Frame: {}, Progress: {:.4}, Elapsed: {:?}",
-                    frame_count, progress, elapsed
+                    frame_count,
+                    progress,
+                    elapsed
                 );
             }
             frame_count += 1;
@@ -536,7 +537,10 @@ impl TransitionEngine {
             }
         }
 
-        tracing::info!("GPU transition loop finished after {} frames. Rendering final frame...", frame_count);
+        tracing::info!(
+            "GPU transition loop finished after {} frames. Rendering final frame...",
+            frame_count
+        );
 
         // Final Frame: present target image fully
         unsafe {
@@ -577,13 +581,10 @@ impl TransitionEngine {
                 d3d_device_context.VSSetShader(&self.vertex_shader, None);
                 d3d_device_context.PSSetShader(&pixel_shader, None);
 
-                d3d_device_context.PSSetShaderResources(
-                    0,
-                    Some(&[Some(srv_from.clone()), Some(srv_to.clone())]),
-                );
-                d3d_device_context.PSSetSamplers(0, Some(&[Some(self.sampler.clone())]));
                 d3d_device_context
-                    .PSSetConstantBuffers(0, Some(&[Some(constant_buffer.clone())]));
+                    .PSSetShaderResources(0, Some(&[Some(srv_from.clone()), Some(srv_to.clone())]));
+                d3d_device_context.PSSetSamplers(0, Some(&[Some(self.sampler.clone())]));
+                d3d_device_context.PSSetConstantBuffers(0, Some(&[Some(constant_buffer.clone())]));
 
                 d3d_device_context.Draw(3, 0);
 
