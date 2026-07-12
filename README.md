@@ -1,6 +1,6 @@
 # Liem Wallpaper
 
-**Liem Wallpaper** is a lightweight, high-performance, GPU-accelerated Windows desktop wallpaper manager. It runs silently in the background as a daemon and provides instant.
+**Liem Wallpaper** is a lightweight, high-performance, GPU-accelerated Windows desktop wallpaper manager. It runs silently in the background as a daemon and provides instant, smooth wallpaper transitions.
 
 ## Command Line Interface (CLI) Usage
 
@@ -21,10 +21,10 @@ lw set "C:\path\to\wallpaper.jpg"
 You can customize the transition on the fly:
 ```powershell
 # Set wallpaper with a pixelate transition over 2.5 seconds
-lw set "C:\path\to\wallpaper.jpg" -t pixelate -d 2500
+lw set "C:\path\to\wallpaper.jpg" -t pixelate -d 2.5
 
 # Set wallpaper with a slide-left transition using ease-out-quint
-lw set "C:\path\to\wallpaper.jpg" -t slide-left -d 1500 -s quint -g out
+lw set "C:\path\to\wallpaper.jpg" -t slide-left -d 1.5 -s quint -g out
 ```
 
 ### 3. Navigation & Shaders List
