@@ -8,6 +8,7 @@ use tokio::net::windows::named_pipe::ServerOptions;
 use tracing::{error, info};
 use windows::Win32::Foundation::{HWND, RECT};
 
+#[allow(dead_code)]
 struct ActiveOverlayContext {
     hwnd: isize,
     swapchain: windows::Win32::Graphics::Dxgi::IDXGISwapChain1,
@@ -274,7 +275,15 @@ where
         }
     }
 
-    // 2. Query active monitor bounds
+    // 2. Set actual wallpaper FIRST in the background so Windows starts its native update.
+    //    Setting it first allows the native Windows background change to finish in the background
+    //    while our overlay runs, completely hiding the secondary native fade!
+    wallpaper_manager.set_wallpaper(target_path)?;
+
+    // Give Windows Explorer a brief moment to process the change and update the WorkerW hierarchy
+    std::thread::sleep(std::time::Duration::from_millis(50));
+
+    // 3. Query active monitor bounds
     let monitors_rects = wallpaper_manager.get_monitor_rects()?;
     let monitors_bounds: Vec<RECT> = monitors_rects
         .iter()
@@ -285,7 +294,7 @@ where
         return Err(lw_core::LwError::Renderer("No monitors detected".to_string()));
     }
 
-    // 3. Initialize D3D11 and locate WorkerW (reuse the D3D context if available to prevent device mismatches)
+    // 4. Initialize D3D11 and locate the fresh active WorkerW window
     let d3d_context = {
         let mut d3d_ctx_store = ACTIVE_D3D_CONTEXT.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(ref ctx) = *d3d_ctx_store {
@@ -302,46 +311,15 @@ where
     let install_dir = exe_path.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| std::path::PathBuf::from("."));
     let shader_dir = install_dir.join("shaders");
 
-    // Check if we can reuse the existing overlay windows and swapchains.
-    // If they match in count and dimensions, we reuse them to prevent taskbar Z-order/painting flickers.
-    let mut existing_contexts = Vec::new();
-    {
-        let mut overlays = ACTIVE_OVERLAYS.lock().unwrap_or_else(|e| e.into_inner());
-        if !overlays.is_empty() && overlays.len() == monitors_bounds.len() {
-            let all_match = overlays.iter().zip(&monitors_bounds).all(|(ov, mb)| {
-                ov.bounds.left == mb.left
-                    && ov.bounds.top == mb.top
-                    && ov.bounds.right == mb.right
-                    && ov.bounds.bottom == mb.bottom
-            });
-            if all_match {
-                existing_contexts = overlays
-                    .drain(..)
-                    .map(|ctx| (HWND(ctx.hwnd), ctx.swapchain, ctx.bounds))
-                    .collect();
-            }
-        }
-    }
+    // Clean up any existing overlays first
+    destroy_active_overlays();
 
-    let was_reused = !existing_contexts.is_empty();
-
-    let mut engine = if was_reused {
-        tracing::info!("Reusing existing {} overlay window(s) and swapchain(s).", existing_contexts.len());
-        lw_transition::TransitionEngine::new_from_existing(
-            Arc::clone(&d3d_context),
-            existing_contexts,
-            shader_dir,
-        )?
-    } else {
-        // If we cannot reuse them, we destroy any existing overlays first.
-        destroy_active_overlays();
-        lw_transition::TransitionEngine::new(
-            Arc::clone(&d3d_context),
-            worker_w,
-            &monitors_bounds,
-            shader_dir,
-        )?
-    };
+    let mut engine = lw_transition::TransitionEngine::new(
+        Arc::clone(&d3d_context),
+        worker_w,
+        &monitors_bounds,
+        shader_dir,
+    )?;
 
     engine.default_easing_style = params.easing_style;
     engine.default_easing_direction = params.easing_direction;
@@ -349,10 +327,7 @@ where
         engine.target_fps = fps;
     }
 
-    // 5. Render transition animation.
-    //    If we are NOT reusing existing windows (meaning new ones were created), we trigger
-    //    destroy_active_overlays immediately after the first frame is presented to prevent start-of-transition flicker.
-    //    If we ARE reusing, there is nothing to destroy.
+    // 5. Render transition animation on top of the native wallpaper change
     let duration_ms = (params.duration_secs * 1000.0) as u32;
     engine.render_transition_with_callback(
         &from_path,
@@ -360,39 +335,22 @@ where
         duration_ms,
         &effect_type,
         || {
-            if !was_reused {
-                destroy_active_overlays();
-            }
+            // Destroy any previous overlay windows as soon as the first frame is presented
+            destroy_active_overlays();
         },
     )?;
 
-    // 6. Take overlay handles, swapchains, and bounds out of the engine so they persist.
-    let contexts = engine.take_overlay_contexts_with_bounds();
+    // 6. Destroy the transition overlay immediately when finished.
+    //    We do NOT reuse overlays to avoid dead window hooks or Explorer hierarchy out-of-sync issues.
+    drop(engine);
 
-    // 7. Store overlay contexts globally to keep swapchains and windows alive, avoiding end-of-transition flicker!
-    {
-        let mut overlays = ACTIVE_OVERLAYS.lock().unwrap_or_else(|e| e.into_inner());
-        *overlays = contexts
-            .into_iter()
-            .map(|(hwnd, sc, bounds)| ActiveOverlayContext {
-                hwnd: hwnd.0,
-                swapchain: sc,
-                bounds,
-            })
-            .collect();
-    }
-
-    // 8. Store D3D context globally to keep the D3D11 device and context alive
+    // Store D3D context globally to keep the D3D11 device and context alive
     {
         let mut d3d_ctx_store = ACTIVE_D3D_CONTEXT.lock().unwrap_or_else(|e| e.into_inner());
         *d3d_ctx_store = Some(d3d_context);
     }
 
-    // 9. Update the actual Windows desktop wallpaper. Since our overlay window is active and fully opaque,
-    //    the user will not see any native Windows slide/fade animation.
-    wallpaper_manager.set_wallpaper(target_path)?;
-
-    tracing::info!("Transition complete. Overlay and swapchains persist, Windows desktop wallpaper updated.");
+    tracing::info!("Transition complete. Windows desktop wallpaper updated successfully.");
     Ok(())
 }
 
