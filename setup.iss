@@ -33,11 +33,49 @@ Filename: "{app}\lw-service.exe"; Description: "Start Liem Wallpaper Service"; F
 Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; Check: NeedsAddPath
 
 [Code]
+procedure CleanOldPath();
+var
+  OldInstallDir: String;
+  Path: String;
+  PosOldDir: Integer;
+begin
+  if RegQueryStringValue(HKEY_CURRENT_USER, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\LiemWallpaper', 'InstallLocation', OldInstallDir) then
+  begin
+    if OldInstallDir <> '' then
+    begin
+      if RegQueryStringValue(HKEY_CURRENT_USER, 'Environment', 'Path', Path) then
+      begin
+        PosOldDir := Pos(';' + Uppercase(OldInstallDir), Uppercase(Path));
+        if PosOldDir > 0 then
+        begin
+          Delete(Path, PosOldDir, Length(';' + OldInstallDir));
+          RegWriteExpandStringValue(HKEY_CURRENT_USER, 'Environment', 'Path', Path);
+        end;
+        
+        PosOldDir := Pos(Uppercase(OldInstallDir) + ';', Uppercase(Path));
+        if PosOldDir > 0 then
+        begin
+          Delete(Path, PosOldDir, Length(OldInstallDir + ';'));
+          RegWriteExpandStringValue(HKEY_CURRENT_USER, 'Environment', 'Path', Path);
+        end;
+        
+        PosOldDir := Pos(Uppercase(OldInstallDir), Uppercase(Path));
+        if PosOldDir > 0 then
+        begin
+          Delete(Path, PosOldDir, Length(OldInstallDir));
+          RegWriteExpandStringValue(HKEY_CURRENT_USER, 'Environment', 'Path', Path);
+        end;
+      end;
+    end;
+  end;
+end;
+
 function InitializeSetup(): Boolean;
 var
   ResultCode: Integer;
 begin
   Result := True;
+  CleanOldPath();
   Exec('taskkill.exe', '/F /IM lw-service.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
