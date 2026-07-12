@@ -53,6 +53,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _ = std::fs::write(shader_dir.join("slide-right.hlsl"), include_str!("../../../shaders/slide-right.hlsl"));
     let _ = std::fs::write(shader_dir.join("slide-up.hlsl"), include_str!("../../../shaders/slide-up.hlsl"));
     let _ = std::fs::write(shader_dir.join("slide-down.hlsl"), include_str!("../../../shaders/slide-down.hlsl"));
+    let _ = std::fs::write(shader_dir.join("clock.hlsl"), include_str!("../../../shaders/clock.hlsl"));
+    let _ = std::fs::write(shader_dir.join("clock-reverse.hlsl"), include_str!("../../../shaders/clock-reverse.hlsl"));
 
     // 3c. Setup default icon in AppData
     let _ = std::fs::write(config_dir.join("icon.ico"), include_bytes!("../../../assets/icon.ico"));

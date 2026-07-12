@@ -4,9 +4,7 @@ SamplerState Sampler : register(s0);
 
 cbuffer TransitionParams : register(b0) {
     float progress;
-    float width;
-    float height;
-    float duration;
+    float3 padding;
 };
 
 struct PS_INPUT {
@@ -18,8 +16,9 @@ float4 main(PS_INPUT input) : SV_TARGET {
     float2 center = float2(0.5, 0.5);
     float2 d = input.uv - center;
     
-    // Correct for aspect ratio so rotation speed/angle is geometrically circular
-    d.x *= (width / height);
+    // Correct for aspect ratio using screen space derivatives
+    float aspect = ddy(input.uv.y) / ddx(input.uv.x);
+    d.x *= aspect;
     
     float angle = atan2(d.x, -d.y); // Start at 12 o'clock, clockwise
     if (angle < 0.0) {

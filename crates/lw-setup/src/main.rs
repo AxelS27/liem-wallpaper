@@ -36,6 +36,8 @@ const SHADER_SLIDE_LEFT: &[u8] = include_bytes!("../../../shaders/slide-left.hls
 const SHADER_SLIDE_RIGHT: &[u8] = include_bytes!("../../../shaders/slide-right.hlsl");
 const SHADER_SLIDE_UP: &[u8] = include_bytes!("../../../shaders/slide-up.hlsl");
 const SHADER_SLIDE_DOWN: &[u8] = include_bytes!("../../../shaders/slide-down.hlsl");
+const SHADER_CLOCK: &[u8] = include_bytes!("../../../shaders/clock.hlsl");
+const SHADER_CLOCK_REVERSE: &[u8] = include_bytes!("../../../shaders/clock-reverse.hlsl");
 
 fn get_install_dir() -> PathBuf {
     let local_app_data = std::env::var("USERPROFILE").unwrap_or_else(|_| ".".to_string());
@@ -333,6 +335,8 @@ fn install(install_dir: &Path) -> std::io::Result<()> {
     fs::write(shader_dir.join("slide-right.hlsl"), SHADER_SLIDE_RIGHT)?;
     fs::write(shader_dir.join("slide-up.hlsl"), SHADER_SLIDE_UP)?;
     fs::write(shader_dir.join("slide-down.hlsl"), SHADER_SLIDE_DOWN)?;
+    fs::write(shader_dir.join("clock.hlsl"), SHADER_CLOCK)?;
+    fs::write(shader_dir.join("clock-reverse.hlsl"), SHADER_CLOCK_REVERSE)?;
 
     // Register Uninstaller in Windows Registry (Add/Remove Programs)
     let uninstall_key = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\LiemWallpaper";
