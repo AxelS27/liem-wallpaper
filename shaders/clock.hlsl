@@ -29,11 +29,20 @@ float2 get_fill_uv(float2 uv, Texture2D tex, float aspect) {
 }
 
 float4 main(PS_INPUT input) : SV_TARGET {
-    float2 center = float2(0.5, 0.5);
-    float2 d = input.uv - center;
-    
     // Correct for aspect ratio using screen space derivatives
     float aspect = ddy(input.uv.y) / ddx(input.uv.x);
+
+    if (progress <= 0.0) {
+        float2 uvFrom = get_fill_uv(input.uv, TextureFrom, aspect);
+        return TextureFrom.Sample(Sampler, uvFrom);
+    }
+    if (progress >= 1.0) {
+        float2 uvTo = get_fill_uv(input.uv, TextureTo, aspect);
+        return TextureTo.Sample(Sampler, uvTo);
+    }
+
+    float2 center = float2(0.5, 0.5);
+    float2 d = input.uv - center;
     d.x *= aspect;
     
     float angle = atan2(d.x, -d.y); // Start at 12 o'clock, clockwise
