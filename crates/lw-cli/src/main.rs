@@ -28,7 +28,7 @@ const PIPE_NAME: &str = r"\\.\pipe\liem-wallpaper";
 )]
 struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
@@ -155,7 +155,18 @@ fn parse_style_and_dir(
 async fn main() {
     let cli = Cli::parse();
 
-    match cli.command {
+    let command = match cli.command {
+        Some(cmd) => cmd,
+        None => {
+            use clap::CommandFactory;
+            let mut cmd = Cli::command();
+            let _ = cmd.print_help();
+            println!();
+            std::process::exit(0);
+        }
+    };
+
+    match command {
         Commands::Status => {
             if let Err(e) = send_request_and_print(IpcRequest::GetStatus).await {
                 eprintln!("CLI Error: {e}");
