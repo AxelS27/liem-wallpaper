@@ -96,7 +96,7 @@ impl Default for TransitionConfig {
 
 impl Default for SchedulerConfig {
     fn default() -> Self {
-        Self { enabled: true, interval_mins: 15, change_on_startup: true, run_on_startup: false }
+        Self { enabled: true, interval_mins: 15, change_on_startup: true, run_on_startup: true }
     }
 }
 
