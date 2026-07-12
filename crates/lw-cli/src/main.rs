@@ -238,7 +238,8 @@ async fn main() {
                 "fade".to_string(), "zoom-in".to_string(), "zoom-out".to_string(),
                 "pixelate".to_string(), "glitch".to_string(), "radial-in".to_string(),
                 "radial-out".to_string(), "slide-left".to_string(), "slide-right".to_string(),
-                "slide-up".to_string(), "slide-down".to_string(), "random".to_string()
+                "slide-up".to_string(), "slide-down".to_string(), "random".to_string(),
+                "clock".to_string(), "clock-reverse".to_string()
             ];
 
             if let Ok(exe_path) = std::env::current_exe() {
