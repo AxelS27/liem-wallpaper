@@ -21,8 +21,8 @@ const PIPE_NAME: &str = r"\\.\pipe\liem-wallpaper";
                   lw shaders\n  \
                   lw update\n\n\
                   TRANSITION FLAGS (for 'set', 'next', and 'prev' commands):\n  \
-                  -t, --transition <type>  Transition effect name (e.g. fade, pixelate, glitch, radial-in, slide-left, zoom-in)\n  \
-                  -d, --duration <ms>      Duration of transition in milliseconds\n  \
+                  -t, --transition <type>  Transition effect name (e.g. fade, pixelate, glitch, radial-in, slide-left, zoom-in, random)\n  \
+                  -d, --duration <secs>    Duration of transition in seconds\n  \
                   -s, --style <curve>      Easing style (linear, sine, quad, cubic, quart, quint, expo, circ, back, bounce, elastic)\n  \
                   -g, --dir <direction>    Easing direction (in, out, inout)"
 )]
@@ -238,7 +238,7 @@ async fn main() {
                 "fade".to_string(), "zoom-in".to_string(), "zoom-out".to_string(),
                 "pixelate".to_string(), "glitch".to_string(), "radial-in".to_string(),
                 "radial-out".to_string(), "slide-left".to_string(), "slide-right".to_string(),
-                "slide-up".to_string(), "slide-down".to_string()
+                "slide-up".to_string(), "slide-down".to_string(), "random".to_string()
             ];
 
             if let Ok(exe_path) = std::env::current_exe() {

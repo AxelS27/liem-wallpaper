@@ -235,6 +235,43 @@ where
         effect_type = "zoom-in".to_string();
     } else if effect_type == "slide" {
         effect_type = "slide-left".to_string();
+    } else if effect_type == "random" {
+        let exe_path = std::env::current_exe().unwrap_or_default();
+        let install_dir = exe_path.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| std::path::PathBuf::from("."));
+        let shader_dir = install_dir.join("shaders");
+
+        let mut shaders = vec![
+            "fade".to_string(), "zoom-in".to_string(), "zoom-out".to_string(),
+            "pixelate".to_string(), "glitch".to_string(), "radial-in".to_string(),
+            "radial-out".to_string(), "slide-left".to_string(), "slide-right".to_string(),
+            "slide-up".to_string(), "slide-down".to_string()
+        ];
+
+        if let Ok(entries) = std::fs::read_dir(&shader_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("hlsl") {
+                    if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                        let stem_str = stem.to_string();
+                        if !shaders.contains(&stem_str) {
+                            shaders.push(stem_str);
+                        }
+                    }
+                }
+            }
+        }
+
+        if !shaders.is_empty() {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos();
+            let idx = (now % (shaders.len() as u128)) as usize;
+            effect_type = shaders[idx].clone();
+            tracing::info!("Selected random transition shader: {}", effect_type);
+        } else {
+            effect_type = "fade".to_string();
+        }
     }
 
     // 2. Query active monitor bounds
