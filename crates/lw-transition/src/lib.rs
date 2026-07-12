@@ -329,16 +329,18 @@ impl TransitionEngine {
 
     /// Renders a transition from an old wallpaper image to a new wallpaper image, executing a callback
     /// immediately after the very first frame is presented.
-    pub fn render_transition_with_callback<F>(
+    pub fn render_transition_with_callback<F, G>(
         &self,
         from_image: &Path,
         to_image: &Path,
         duration_ms: u32,
         effect_type: &str,
         on_first_frame: F,
+        on_transition_completed: G,
     ) -> Result<(), LwError>
     where
         F: FnOnce(),
+        G: FnOnce(),
     {
         let d3d_device = self.d3d_context.device();
         let d3d_device_context = self.d3d_context.device_context();
@@ -422,21 +424,35 @@ impl TransitionEngine {
         // 4. Render Loop
         let start_time = std::time::Instant::now();
         let duration = std::time::Duration::from_millis(u64::from(duration_ms));
+        let hold_duration = std::time::Duration::from_millis(1000); // 1.0 second hold to let native wallpaper fade complete
+        let total_duration = duration + hold_duration;
         let mut frame_count = 0;
         let fps = if self.target_fps == 0 { 60 } else { self.target_fps };
         let target_frame_time = std::time::Duration::from_nanos(1_000_000_000 / u64::from(fps));
         let mut on_first_frame = Some(on_first_frame);
+        let mut on_transition_completed = Some(on_transition_completed);
 
-        tracing::info!("Entering GPU transition loop. Duration: {:?}.", duration);
+        tracing::info!("Entering GPU transition loop. Duration: {:?}, Hold: {:?}.", duration, hold_duration);
 
         loop {
             let frame_start = std::time::Instant::now();
             let elapsed = start_time.elapsed();
-            if elapsed >= duration {
+            if elapsed >= total_duration {
                 break;
             }
 
-            let t = elapsed.as_secs_f32() / duration.as_secs_f32();
+            // Trigger completion callback at the transition boundary (t >= 1.0)
+            if elapsed >= duration {
+                if let Some(cb) = on_transition_completed.take() {
+                    cb();
+                }
+            }
+
+            let t = if elapsed >= duration {
+                1.0f32
+            } else {
+                elapsed.as_secs_f32() / duration.as_secs_f32()
+            };
             let progress = easing::interpolate(t, self.default_easing_style, self.default_easing_direction);
 
             if frame_count % 30 == 0 {
@@ -610,7 +626,7 @@ impl TransitionRenderer for TransitionEngine {
         duration_ms: u32,
         effect_type: &str,
     ) -> Result<(), LwError> {
-        self.render_transition_with_callback(from_image, to_image, duration_ms, effect_type, || {})
+        self.render_transition_with_callback(from_image, to_image, duration_ms, effect_type, || {}, || {})
     }
 }
 

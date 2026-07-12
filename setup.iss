@@ -3,7 +3,7 @@
 
 [Setup]
 AppName=Liem Wallpaper
-AppVersion=0.1.3
+AppVersion=0.1.4
 AppPublisher=Liem Wallpaper Contributors
 DefaultDirName={userpf}\Liem Wallpaper
 DefaultGroupName=Liem Wallpaper
